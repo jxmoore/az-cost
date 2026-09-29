@@ -1,0 +1,134 @@
+/* The map page. */
+:root {
+  --bg: #0d1016; --frame: #050608; --panel: #11151c; --line: #222835; --text: #d6dae2;
+  --muted: #7c8494; --dim: #545b69; --accent: #e3a55a; --neutral: #5a6170;
+  --compute: oklch(0.72 0.11 55); --storage: oklch(0.72 0.11 250); --database: oklch(0.72 0.11 355);
+  --network: oklch(0.72 0.11 185); --ai: oklch(0.72 0.11 295); --analytics: oklch(0.72 0.11 95);
+  --ops: oklch(0.72 0.11 145); --other: oklch(0.66 0.02 260); /* one lightness and chroma: no colour shouts */
+  --up: #e5534b; --down: #3fb68b; --advisor: #4fa3e0;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--frame); color: var(--text);
+  font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums; overflow: hidden; }
+.app { position: fixed; inset: 10px; display: grid; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; overflow: hidden;
+  grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+
+header { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 9px 14px;
+  border-bottom: 1px solid var(--line); min-width: 0; }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+.logo i { display: grid; grid-template-columns: 7px 7px; gap: 2px; }
+.logo i b { width: 7px; height: 7px; border-radius: 1px; }
+.crumbs { color: var(--dim); display: flex; gap: 6px; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; }
+.crumbs a { color: var(--muted); cursor: pointer; text-decoration: none; }
+.crumbs a:hover { color: var(--text); }
+.crumbs .cur { color: var(--text); background: #1b212c; padding: 2px 7px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; }
+.spacer { flex: 1; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.seg button { background: none; border: 0; color: var(--muted); font: inherit; padding: 4px 11px; border-radius: 4px; cursor: pointer; }
+.seg button.on { background: #222938; color: var(--text); }
+.seg button:hover { color: var(--text); }
+label.chk { display: flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+label.chk input { accent-color: var(--accent); margin: 0; }
+.hbtn { background: none; border: 1px solid var(--line); color: var(--muted); font: inherit; padding: 5px 10px;
+  border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.hbtn:hover { color: var(--text); border-color: #3a4356; }
+#filter { background: #0a0d12; border: 1px solid var(--line); color: var(--text); font: inherit; padding: 5px 9px;
+  border-radius: 6px; width: 170px; outline: none; }
+#filter:focus { border-color: #3a4356; }
+
+.sub { display: flex; align-items: center; gap: 16px; padding: 8px 14px 6px; color: var(--muted); min-width: 0; overflow: hidden; white-space: nowrap; }
+.sub b { color: var(--text); font-weight: 600; }
+.legend { display: flex; gap: 12px; margin-left: auto; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend i { width: 9px; height: 9px; border-radius: 2px; }
+.legend { overflow: hidden; flex-wrap: wrap; max-height: 16px; } /* entries that don't fit drop whole, never half a word */
+.legend i.todo { background: #262b35 repeating-linear-gradient(135deg, transparent 0 2px, rgb(255 255 255 / .35) 2px 3px); }
+
+/* the zoom animation transforms #map, so the clipping has to sit on a box that doesn't move */
+#mapbox { margin: 2px 8px 8px 12px; min-height: 0; overflow: hidden; }
+#map { position: relative; height: 100%; transform-origin: 0 0; outline: none; }
+#map:focus-visible { outline: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: -1px; }
+.cell { position: absolute; overflow: hidden; border-radius: 2px; cursor: pointer; }
+/* no outlines: gaps separate the boxes, and a box is a step lighter than its group */
+.leaf { background-color: color-mix(in oklab, var(--c) 32%, var(--bg)); padding: 3px 5px; }
+.leaf:hover { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .55); }
+.leaf.tiny { padding: 0; } /* smaller than its padding, a box would render bigger than its slot and spill over */
+.leaf.more { background-color: color-mix(in oklab, var(--c) 18%, var(--bg)); }
+.leaf.more .n { color: var(--muted); }
+/* the boxes Worth a look's to-dos are about: the map is the to-do list */
+.leaf.todo { background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgb(255 255 255 / .10) 6px 8px); }
+.group { background-color: color-mix(in oklab, var(--c) 13%, var(--bg)); box-shadow: inset 0 2px 0 color-mix(in oklab, var(--c) 85%, var(--bg)); }
+.gh { display: flex; justify-content: space-between; gap: 6px; padding: 2px 5px 0; height: 19px; white-space: nowrap; }
+.gh .n { color: var(--text); overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.gh .v { color: var(--muted); font-size: 10.5px; }
+.leaf .n { color: #e3e6ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leaf .v { color: color-mix(in srgb, var(--c) 45%, #9aa1ad); font-size: 10.5px; white-space: nowrap; }
+.cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cell.dim { opacity: .18; } /* the filter fades what doesn't match, so the map keeps its shape */
+.leaf.sel { z-index: 2; } /* not groups: their boxes are siblings on top, and a raised group would cover them */
+.empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+
+aside { grid-column: 2; grid-row: 2 / 4; border-left: 1px solid var(--line); background: var(--panel);
+  padding: 14px 16px 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+#side > section:last-child { padding-bottom: 14px; } /* the bottom padding lives here, so the sticky Advisor header sits flush */
+.h { color: var(--dim); font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; display: flex; justify-content: space-between; }
+.h b { color: var(--accent); font-weight: 500; letter-spacing: 0; }
+.sel-name { font-size: 16px; margin-top: 8px; word-break: break-word; }
+.sel-name a { color: inherit; text-decoration: none; }
+.sel-name a:hover { color: #fff; text-decoration: underline; }
+.sel-path { color: var(--dim); margin-top: 3px; word-break: break-word; }
+.big { font-size: 34px; font-weight: 300; margin-top: 10px; letter-spacing: -.5px; }
+.big small { font-size: 14px; color: var(--muted); margin-left: 2px; }
+.bar { height: 4px; background: #1d2330; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; margin-top: 14px; }
+.stats div span { display: block; color: var(--dim); font-size: 10px; letter-spacing: .6px; text-transform: uppercase; margin-bottom: 2px; }
+.stats div { font-size: 13px; }
+.stats b { font-weight: 400; }
+.upc, .warn { color: var(--up); } .downc { color: var(--down); }
+.spark { margin-top: 14px; }
+.spark svg { display: block; width: 100%; height: 46px; }
+.spark .axis { display: flex; justify-content: space-between; color: var(--dim); font-size: 10px; margin-top: 3px; }
+/* lists read like a statement: plain rows, hairline dividers, a small tag for what kind of row it is */
+.hint { padding: 9px 0; cursor: pointer; }
+.hint + .hint { border-top: 1px solid var(--line); }
+.hint:hover .hn { color: #fff; }
+.ht { display: flex; justify-content: space-between; gap: 10px; }
+.hn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hv { white-space: nowrap; }
+.hs { color: var(--dim); font-size: 11px; margin-top: 3px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2; } /* two lines: the reason is the point of a hint */
+.tag { color: var(--c, var(--accent)); font-size: 9.5px; letter-spacing: .7px; text-transform: uppercase; margin-right: 6px; }
+/* Advisor's header waits at the bottom of the panel while the lists scroll; a click scrolls to its tips */
+.advh { position: sticky; bottom: 0; margin-top: auto; border-top: 1px solid var(--line); padding: 12px 0 10px;
+  background: var(--panel); cursor: pointer; z-index: 1; }
+.advh b { color: var(--advisor); }
+.advh + section { margin-top: -14px; }
+/* on a tall screen the selection stays in view too; on a laptop it would leave the lists too little room */
+@media (min-height: 900px) { #side > section:first-child { position: sticky; top: -14px; padding-top: 14px; margin-top: -14px;
+  background: var(--panel); z-index: 1; } }
+.note { color: var(--dim); margin-top: 9px; }
+.showall { color: var(--muted); margin-top: 10px; font-size: 11px; cursor: pointer; }
+.showall:hover { color: var(--text); }
+
+footer { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 7px 14px; border-top: 1px solid var(--line);
+  color: var(--dim); white-space: nowrap; overflow: hidden; }
+footer a { color: var(--muted); text-decoration: none; }
+footer a:hover { color: var(--text); }
+kbd { font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-right: 4px; }
+.badge { color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; padding: 0 6px; }
+
+#tip { position: fixed; pointer-events: none; background: #1a1f29; border: 1px solid #2c3444; border-radius: 6px; padding: 7px 9px;
+  z-index: 10; display: none; max-width: 320px; box-shadow: 0 6px 24px #0008; }
+#tip .t1 { color: var(--text); word-break: break-word; }
+#tip .t2 { color: var(--muted); margin-top: 3px; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto 60vh auto auto; overflow-y: auto; }
+  aside { grid-column: 1; grid-row: 4; border-left: 0; border-top: 1px solid var(--line); }
+  .advh, #side > section:first-child { position: static; } /* stacked, the page scrolls, not the panel */
+  footer { grid-row: 5; }
+  header { flex-wrap: wrap; } .legend { display: none; }
+}

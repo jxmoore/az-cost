@@ -1,0 +1,31 @@
+# azcost behind Caddy: a reference for your own image. Copy `dist/` (from `npm run build`) to /srv.
+# The two ids come from the environment when Caddy starts ({$VAR} is read at startup), so no file is written
+# and one image serves any tenant. Neither id is a secret: a single-page app's client id is public by design.
+#
+#   docker run -e AZCOST_CLIENT_ID=<app-id> -e AZCOST_TENANT_ID=<tenant-id> -p 443:443 your-image
+
+{$AZCOST_SITE_ADDRESS::8080} {
+	root * /srv
+	encode gzip
+
+	# The app reads this once at startup. Answered from the environment, so the placeholder file in dist/ is never used.
+	handle /config.json {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond `{"clientId":"{$AZCOST_CLIENT_ID}","tenantId":"{$AZCOST_TENANT_ID}"}` 200
+	}
+
+	handle {
+		# The browser talks to Entra ID (sign-in) and Azure Resource Manager (costs) directly, and nothing else.
+		# frame-src/frame-ancestors 'self': silent sign-in finishes in a hidden frame on /redirect.html.
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://management.azure.com; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+			X-Content-Type-Options nosniff
+			Referrer-Policy no-referrer
+		}
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

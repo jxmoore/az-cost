@@ -1,0 +1,1296 @@
+{
+ "days": [
+  "2026-09-13",
+  "2026-09-14",
+  "2026-09-15",
+  "2026-09-16",
+  "2026-09-17",
+  "2026-09-18",
+  "2026-09-19",
+  "2026-09-20",
+  "2026-09-21",
+  "2026-09-22",
+  "2026-09-23",
+  "2026-09-24",
+  "2026-09-25",
+  "2026-09-26"
+ ],
+ "split": 7,
+ "views": {
+  "service": {
+   "dims": [
+    "ServiceName",
+    "Meter"
+   ],
+   "names": {},
+   "rows": [
+    {
+     "k": [
+      "Virtual Machines",
+      "D2 v2"
+     ],
+     "d": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    {
+     "k": [
+      "SQL Database",
+      "vCore"
+     ],
+     "d": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    },
+    {
+     "k": [
+      "Virtual Network",
+      "Standard IPv4 Static Public IP"
+     ],
+     "d": [
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2
+     ]
+    },
+    {
+     "k": [
+      "Azure Data Factory v2",
+      "Cloud Data Movement"
+     ],
+     "d": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      150,
+      1,
+      1
+     ]
+    },
+    {
+     "k": [
+      "Log Analytics",
+      "Analytics Logs Data Ingestion"
+     ],
+     "d": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ]
+    },
+    {
+     "k": [
+      "Storage",
+      "Hot LRS Data Stored"
+     ],
+     "d": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    {
+     "k": [
+      "Azure Cosmos DB",
+      "Reserved 100 RU/s"
+     ],
+     "d": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -40,
+      0
+     ]
+    },
+    {
+     "k": [
+      "Azure App Service",
+      "S1 App"
+     ],
+     "d": [
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    {
+     "k": [
+      "Bandwidth",
+      "Standard Data Transfer Out"
+     ],
+     "d": [
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5
+     ]
+    },
+    {
+     "k": [
+      "Key Vault",
+      "Operations"
+     ],
+     "d": [
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001,
+      0.001
+     ]
+    },
+    {
+     "k": [
+      "Key Vault",
+      "(under a cent each)"
+     ],
+     "d": [
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006,
+      0.0006
+     ]
+    }
+   ]
+  },
+  "subscription": {
+   "dims": [
+    "SubscriptionId",
+    "ServiceName"
+   ],
+   "names": {
+    "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": "team-a",
+    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": "team-b"
+   },
+   "rows": [
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Virtual Machines"
+     ],
+     "d": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "SQL Database"
+     ],
+     "d": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Virtual Network"
+     ],
+     "d": [
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Azure Data Factory v2"
+     ],
+     "d": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      150,
+      1,
+      1
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Log Analytics"
+     ],
+     "d": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Storage"
+     ],
+     "d": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    {
+     "k": [
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "Azure Cosmos DB"
+     ],
+     "d": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -40,
+      0
+     ]
+    },
+    {
+     "k": [
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "Azure App Service"
+     ],
+     "d": [
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    {
+     "k": [
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "Bandwidth"
+     ],
+     "d": [
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5
+     ]
+    },
+    {
+     "k": [
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "Key Vault"
+     ],
+     "d": [
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016
+     ]
+    }
+   ]
+  },
+  "region": {
+   "dims": [
+    "ResourceLocation",
+    "ServiceName"
+   ],
+   "names": {},
+   "rows": [
+    {
+     "k": [
+      "eastus",
+      "Virtual Machines"
+     ],
+     "d": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    {
+     "k": [
+      "eastus",
+      "SQL Database"
+     ],
+     "d": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    },
+    {
+     "k": [
+      "eastus",
+      "Virtual Network"
+     ],
+     "d": [
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2
+     ]
+    },
+    {
+     "k": [
+      "westeurope",
+      "Azure Data Factory v2"
+     ],
+     "d": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      150,
+      1,
+      1
+     ]
+    },
+    {
+     "k": [
+      "eastus",
+      "Log Analytics"
+     ],
+     "d": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ]
+    },
+    {
+     "k": [
+      "eastus",
+      "Storage"
+     ],
+     "d": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    {
+     "k": [
+      "eastus",
+      "Azure Cosmos DB"
+     ],
+     "d": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -40,
+      0
+     ]
+    },
+    {
+     "k": [
+      "westeurope",
+      "Azure App Service"
+     ],
+     "d": [
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    {
+     "k": [
+      "westeurope",
+      "Bandwidth"
+     ],
+     "d": [
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5
+     ]
+    },
+    {
+     "k": [
+      "westeurope",
+      "Key Vault"
+     ],
+     "d": [
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016
+     ]
+    }
+   ]
+  },
+  "resource": {
+   "dims": [
+    "ResourceGroupName",
+    "ResourceId"
+   ],
+   "names": {
+    "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev": "rg-app-dev · team-a",
+    "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data": "rg-data · team-a",
+    "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net": "rg-net · team-a",
+    "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon": "rg-mon · team-a",
+    "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web": "rg-web · team-b"
+   },
+   "rows": [
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1"
+     ],
+     "d": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.sql/servers/sql1/databases/orders"
+     ],
+     "d": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net/providers/microsoft.network/publicipaddresses/pip-old"
+     ],
+     "d": [
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.datafactory/factories/adf1"
+     ],
+     "d": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      150,
+      1,
+      1
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon/providers/microsoft.operationalinsights/workspaces/log1"
+     ],
+     "d": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.storage/storageaccounts/st1"
+     ],
+     "d": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data",
+      "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.documentdb/databaseaccounts/cos1"
+     ],
+     "d": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -40,
+      0
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web",
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/serverfarms/asp1"
+     ],
+     "d": [
+      49,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web",
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/sites/app1"
+     ],
+     "d": [
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3.5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web",
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv1"
+     ],
+     "d": [
+      0.007,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.007,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "k": [
+      "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web",
+      "(under a cent each)"
+     ],
+     "d": [
+      0.0042,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.0042,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  },
+  "tag": {
+   "dims": [
+    "TagValue",
+    "ServiceName"
+   ],
+   "names": {},
+   "tag": "env",
+   "rows": [
+    {
+     "k": [
+      "dev",
+      "Virtual Machines"
+     ],
+     "d": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "SQL Database"
+     ],
+     "d": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    },
+    {
+     "k": [
+      "",
+      "Virtual Network"
+     ],
+     "d": [
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2,
+      1.2
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Azure Data Factory v2"
+     ],
+     "d": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      150,
+      1,
+      1
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Log Analytics"
+     ],
+     "d": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Storage"
+     ],
+     "d": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Azure Cosmos DB"
+     ],
+     "d": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -40,
+      0
+     ]
+    },
+    {
+     "k": [
+      "",
+      "Azure App Service"
+     ],
+     "d": [
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Bandwidth"
+     ],
+     "d": [
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5,
+      1,
+      0,
+      0.5
+     ]
+    },
+    {
+     "k": [
+      "prod",
+      "Key Vault"
+     ],
+     "d": [
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016,
+      0.0016
+     ]
+    }
+   ]
+  }
+ },
+ "currency": "EUR",
+ "subscriptions": [
+  {
+   "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+   "name": "team-a",
+   "currency": "USD",
+   "tenant": "t1"
+  },
+  {
+   "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+   "name": "team-b",
+   "currency": "EUR",
+   "tenant": "t1"
+  }
+ ],
+ "resource_fallback": [
+  "team-b"
+ ],
+ "advisor": [
+  {
+   "problem": "Consider SQL PaaS DB reserved instance to save over the pay-as-you-go costs",
+   "solution": "Consider SQL PaaS DB reserved instance to save over the pay-as-you-go costs",
+   "impact": "High",
+   "resource": "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+   "resource_name": "team-a",
+   "resource_type": "Microsoft.Subscriptions/subscriptions",
+   "sku": "SQL DB Gen 5",
+   "term": "P1Y",
+   "region": "eastus",
+   "annual_savings": 2100,
+   "currency": "USD",
+   "subscription": "team-a"
+  },
+  {
+   "problem": "Right-size or shutdown underutilized virtual machines",
+   "solution": "Right-size or shutdown underutilized virtual machines",
+   "impact": "High",
+   "resource": "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1",
+   "resource_name": "vm-dev1",
+   "resource_type": "Microsoft.Subscriptions/subscriptions",
+   "sku": "Standard_B1s",
+   "term": null,
+   "region": "eastus",
+   "annual_savings": 300,
+   "currency": "USD",
+   "subscription": "team-a"
+  }
+ ],
+ "advisor_error": "HTTP 403",
+ "mixed_currencies": [
+  "EUR",
+  "USD"
+ ],
+ "usd_rate": null,
+ "forecast": null,
+ "forecast_note": "the forecast came in a different currency (EUR, USD) than the bill (EUR)",
+ "graph": [
+  {
+   "check": "unused-ip",
+   "id": "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net/providers/microsoft.network/publicipaddresses/pip-old",
+   "name": "pip-old",
+   "resourceGroup": "rg-net",
+   "subscriptionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  },
+  {
+   "check": "unattached-disk",
+   "id": "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-x/providers/microsoft.compute/disks/free",
+   "name": "free",
+   "resourceGroup": "rg-x",
+   "subscriptionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  }
+ ],
+ "graph_error": null,
+ "demo": false,
+ "metric": "ActualCost",
+ "generated": "2026-09-28 10:00"
+}

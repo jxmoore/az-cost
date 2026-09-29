@@ -1,0 +1,2524 @@
+{
+ "tool": "azcost",
+ "instructions_for_ai": "This is an Azure cost breakdown exported by azcost. Amounts are in `currency`, for the cost type in `metric` (ActualCost books reservation and savings plan purchases on the day they were bought; AmortizedCost spreads them over the term). When `currency` is \"mixed\", the subscriptions bill in the currencies listed in `currencies` and Azure didn't convert them, so totals add different currencies: compare amounts within one subscription only. `usd_rate` is units of `currency` per US dollar, as this bill priced them (null when unknown). `current` is the most recent period and `previous` is the equally long period before it. Line items are Azure meters grouped by service; `totals.credits_and_refunds` is the part of `current` that comes from negative line items (credits, refunds). `resource_fallback` names subscriptions with so many resources that azcost read one total per resource and period for them: their resource groups' amounts are right, but daily detail and dev/test always-on checks aren't available there. `flags` are known cost traps matched on meter names. `hints` is the list the page shows under Worth a look: news (growers, one-off spikes) taking turns with to-dos (money pits, always-on compute in dev/test groups, idle resources, steady spend worth committing). `advisor` holds Azure Advisor's cost recommendations, one per kind, resource and SKU, with the largest annual saving Advisor reported; recommendations that cover the same usage (a reservation and a savings plan, a 1-year and a 3-year term) are alternatives, not additive. A tip's `covers` lists the meters its reservation or savings plan would cover, matched across the whole bill, so in a multi-subscription export it can include other subscriptions' usage. `by_tag` splits the bill by the values of the tag named in `tag`; the row marked `untagged: true` (shown as \"(untagged)\") is spend on resources without it. `forecast` is Azure's own forecast for the current calendar month: `actual` is billed so far, `forecast` is still to come and `total` is both. Hints of kind `idle` are resources Azure Resource Graph found billing while doing nothing (VMs stopped but still allocated, unattached disks, unused public IPs, snapshots older than 90 days, App Service plans with no apps, NAT gateways on no subnet), with what they cost in the current period. Please: 1) explain what drives the cost, 2) explain notable changes vs the previous period, 3) suggest concrete savings, each with an estimated monthly saving and how to verify it. Levers to consider: reservations and savings plans for steady compute and databases; Azure Hybrid Benefit for Windows Server and SQL Server licenses already owned; dev/test pricing for non-production subscriptions; right-sizing and auto-shutdown for VMs and App Service plans; blob access tiers (cool, cold, archive) and lifecycle rules; Log Analytics commitment tier pricing, Basic logs and shorter table retention; and keeping data transfer inside one region.",
+ "generated": "2026-09-28 10:00",
+ "metric": "ActualCost",
+ "currency": "USD",
+ "currencies": [
+  "USD"
+ ],
+ "usd_rate": null,
+ "subscriptions": [
+  {
+   "id": "11111111-1111-1111-1111-111111111111",
+   "name": "acme-prod",
+   "currency": "USD"
+  },
+  {
+   "id": "22222222-2222-2222-2222-222222222222",
+   "name": "acme-staging",
+   "currency": "USD"
+  },
+  {
+   "id": "33333333-3333-3333-3333-333333333333",
+   "name": "acme-data",
+   "currency": "USD"
+  },
+  {
+   "id": "44444444-4444-4444-4444-444444444444",
+   "name": "sandbox-dev",
+   "currency": "USD"
+  }
+ ],
+ "demo_data": true,
+ "period": {
+  "current": {
+   "start": "2026-08-28",
+   "end": "2026-09-26",
+   "days": 30
+  },
+  "previous": {
+   "start": "2026-07-29",
+   "end": "2026-08-27",
+   "days": 30
+  }
+ },
+ "totals": {
+  "current": 12389.51,
+  "previous": 11877.4,
+  "change": 512.11,
+  "change_pct": 4.3,
+  "share_pct": 100,
+  "daily_avg": 412.98,
+  "monthly_pace": 12554.71,
+  "credits_and_refunds": -150
+ },
+ "by_service": [
+  {
+   "service": "Virtual Machines",
+   "current": 4915.45,
+   "previous": 5339.88,
+   "change": -424.43,
+   "change_pct": -7.9,
+   "share_pct": 39.67
+  },
+  {
+   "service": "SQL Database",
+   "current": 1410.93,
+   "previous": 1407.3,
+   "change": 3.62,
+   "change_pct": 0.3,
+   "share_pct": 11.39
+  },
+  {
+   "service": "Storage",
+   "current": 1147.81,
+   "previous": 1107.51,
+   "change": 40.3,
+   "change_pct": 3.6,
+   "share_pct": 9.26
+  },
+  {
+   "service": "Log Analytics",
+   "current": 1113.73,
+   "previous": 790.39,
+   "change": 323.34,
+   "change_pct": 40.9,
+   "share_pct": 8.99
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "current": 622.17,
+   "previous": 558.87,
+   "change": 63.3,
+   "change_pct": 11.3,
+   "share_pct": 5.02
+  },
+  {
+   "service": "Azure App Service",
+   "current": 570,
+   "previous": 570,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 4.6
+  },
+  {
+   "service": "Foundry Models",
+   "current": 545.7,
+   "previous": 294.93,
+   "change": 250.77,
+   "change_pct": 85,
+   "share_pct": 4.4
+  },
+  {
+   "service": "Bandwidth",
+   "current": 465.64,
+   "previous": 439.57,
+   "change": 26.07,
+   "change_pct": 5.9,
+   "share_pct": 3.76
+  },
+  {
+   "service": "Azure Data Factory v2",
+   "current": 335.92,
+   "previous": 141.5,
+   "change": 194.42,
+   "change_pct": 137.4,
+   "share_pct": 2.71
+  },
+  {
+   "service": "Functions",
+   "current": 233.74,
+   "previous": 221.19,
+   "change": 12.55,
+   "change_pct": 5.7,
+   "share_pct": 1.89
+  },
+  {
+   "service": "NAT Gateway",
+   "current": 214.7,
+   "previous": 193.17,
+   "change": 21.52,
+   "change_pct": 11.1,
+   "share_pct": 1.73
+  },
+  {
+   "service": "Microsoft Defender for Cloud",
+   "current": 180,
+   "previous": 180,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.45
+  },
+  {
+   "service": "Azure Front Door Service",
+   "current": 149.61,
+   "previous": 149.4,
+   "change": 0.21,
+   "change_pct": 0.1,
+   "share_pct": 1.21
+  },
+  {
+   "service": "Virtual Network",
+   "current": 132,
+   "previous": 132,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.07
+  },
+  {
+   "service": "Event Hubs",
+   "current": 108,
+   "previous": 108,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.87
+  },
+  {
+   "service": "Redis Cache",
+   "current": 99,
+   "previous": 99,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.8
+  },
+  {
+   "service": "Azure Kubernetes Service",
+   "current": 72,
+   "previous": 72,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.58
+  },
+  {
+   "service": "Azure Monitor",
+   "current": 44.54,
+   "previous": 44.02,
+   "change": 0.52,
+   "change_pct": 1.2,
+   "share_pct": 0.36
+  },
+  {
+   "service": "Container Registry",
+   "current": 20.1,
+   "previous": 20.1,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.16
+  },
+  {
+   "service": "Key Vault",
+   "current": 8.48,
+   "previous": 8.56,
+   "change": -0.08,
+   "change_pct": -0.9,
+   "share_pct": 0.07
+  }
+ ],
+ "by_subscription": [
+  {
+   "subscription_id": "11111111-1111-1111-1111-111111111111",
+   "name": "acme-prod",
+   "current": 8247.27,
+   "previous": 7732.11,
+   "change": 515.16,
+   "change_pct": 6.7,
+   "share_pct": 66.57,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 3109.65,
+     "previous": 3007.06,
+     "change": 102.59,
+     "change_pct": 3.4,
+     "share_pct": 25.1
+    },
+    {
+     "service": "SQL Database",
+     "current": 1041.93,
+     "previous": 1038.3,
+     "change": 3.62,
+     "change_pct": 0.3,
+     "share_pct": 8.41
+    },
+    {
+     "service": "Log Analytics",
+     "current": 944.23,
+     "previous": 673.23,
+     "change": 271,
+     "change_pct": 40.3,
+     "share_pct": 7.62
+    },
+    {
+     "service": "Storage",
+     "current": 649.55,
+     "previous": 624.75,
+     "change": 24.8,
+     "change_pct": 4,
+     "share_pct": 5.24
+    },
+    {
+     "service": "Azure Cosmos DB",
+     "current": 622.17,
+     "previous": 558.87,
+     "change": 63.3,
+     "change_pct": 11.3,
+     "share_pct": 5.02
+    },
+    {
+     "service": "Azure App Service",
+     "current": 420,
+     "previous": 420,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 3.39
+    },
+    {
+     "service": "Bandwidth",
+     "current": 347.59,
+     "previous": 332.45,
+     "change": 15.13,
+     "change_pct": 4.6,
+     "share_pct": 2.81
+    },
+    {
+     "service": "Functions",
+     "current": 233.74,
+     "previous": 221.19,
+     "change": 12.55,
+     "change_pct": 5.7,
+     "share_pct": 1.89
+    },
+    {
+     "service": "NAT Gateway",
+     "current": 214.7,
+     "previous": 193.17,
+     "change": 21.52,
+     "change_pct": 11.1,
+     "share_pct": 1.73
+    },
+    {
+     "service": "Microsoft Defender for Cloud",
+     "current": 180,
+     "previous": 180,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.45
+    },
+    {
+     "service": "Azure Front Door Service",
+     "current": 149.61,
+     "previous": 149.4,
+     "change": 0.21,
+     "change_pct": 0.1,
+     "share_pct": 1.21
+    },
+    {
+     "service": "Redis Cache",
+     "current": 99,
+     "previous": 99,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.8
+    },
+    {
+     "service": "Virtual Network",
+     "current": 90,
+     "previous": 90,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.73
+    },
+    {
+     "service": "Azure Kubernetes Service",
+     "current": 72,
+     "previous": 72,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.58
+    },
+    {
+     "service": "Azure Monitor",
+     "current": 44.54,
+     "previous": 44.02,
+     "change": 0.52,
+     "change_pct": 1.2,
+     "share_pct": 0.36
+    },
+    {
+     "service": "Container Registry",
+     "current": 20.1,
+     "previous": 20.1,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    },
+    {
+     "service": "Key Vault",
+     "current": 8.48,
+     "previous": 8.56,
+     "change": -0.08,
+     "change_pct": -0.9,
+     "share_pct": 0.07
+    }
+   ]
+  },
+  {
+   "subscription_id": "33333333-3333-3333-3333-333333333333",
+   "name": "acme-data",
+   "current": 2573.94,
+   "previous": 2879.89,
+   "change": -305.95,
+   "change_pct": -10.6,
+   "share_pct": 20.78,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 1533.2,
+     "previous": 2060.02,
+     "change": -526.81,
+     "change_pct": -25.6,
+     "share_pct": 12.38
+    },
+    {
+     "service": "Storage",
+     "current": 478.76,
+     "previous": 463.26,
+     "change": 15.5,
+     "change_pct": 3.3,
+     "share_pct": 3.86
+    },
+    {
+     "service": "Azure Data Factory v2",
+     "current": 335.92,
+     "previous": 141.5,
+     "change": 194.42,
+     "change_pct": 137.4,
+     "share_pct": 2.71
+    },
+    {
+     "service": "Bandwidth",
+     "current": 118.05,
+     "previous": 107.12,
+     "change": 10.94,
+     "change_pct": 10.2,
+     "share_pct": 0.95
+    },
+    {
+     "service": "Event Hubs",
+     "current": 108,
+     "previous": 108,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.87
+    }
+   ]
+  },
+  {
+   "subscription_id": "22222222-2222-2222-2222-222222222222",
+   "name": "acme-staging",
+   "current": 980.6,
+   "previous": 928.47,
+   "change": 52.13,
+   "change_pct": 5.6,
+   "share_pct": 7.91,
+   "services": [
+    {
+     "service": "SQL Database",
+     "current": 369,
+     "previous": 369,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 2.98
+    },
+    {
+     "service": "Virtual Machines",
+     "current": 272.6,
+     "previous": 272.81,
+     "change": -0.21,
+     "change_pct": -0.1,
+     "share_pct": 2.2
+    },
+    {
+     "service": "Log Analytics",
+     "current": 169.51,
+     "previous": 117.16,
+     "change": 52.34,
+     "change_pct": 44.7,
+     "share_pct": 1.37
+    },
+    {
+     "service": "Azure App Service",
+     "current": 150,
+     "previous": 150,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.21
+    },
+    {
+     "service": "Storage",
+     "current": 19.5,
+     "previous": 19.5,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    }
+   ]
+  },
+  {
+   "subscription_id": "44444444-4444-4444-4444-444444444444",
+   "name": "sandbox-dev",
+   "current": 587.7,
+   "previous": 336.93,
+   "change": 250.77,
+   "change_pct": 74.4,
+   "share_pct": 4.74,
+   "services": [
+    {
+     "service": "Foundry Models",
+     "current": 545.7,
+     "previous": 294.93,
+     "change": 250.77,
+     "change_pct": 85,
+     "share_pct": 4.4
+    },
+    {
+     "service": "Virtual Network",
+     "current": 42,
+     "previous": 42,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.34
+    }
+   ]
+  }
+ ],
+ "by_region": [
+  {
+   "region": "us east",
+   "current": 9784.79,
+   "previous": 9130.75,
+   "change": 654.04,
+   "change_pct": 7.2,
+   "share_pct": 78.98,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 4088.77,
+     "previous": 3899.43,
+     "change": 189.34,
+     "change_pct": 4.9,
+     "share_pct": 33
+    },
+    {
+     "service": "SQL Database",
+     "current": 1410.93,
+     "previous": 1407.3,
+     "change": 3.62,
+     "change_pct": 0.3,
+     "share_pct": 11.39
+    },
+    {
+     "service": "Log Analytics",
+     "current": 1113.73,
+     "previous": 790.39,
+     "change": 323.34,
+     "change_pct": 40.9,
+     "share_pct": 8.99
+    },
+    {
+     "service": "Storage",
+     "current": 669.05,
+     "previous": 644.25,
+     "change": 24.8,
+     "change_pct": 3.8,
+     "share_pct": 5.4
+    },
+    {
+     "service": "Azure Cosmos DB",
+     "current": 622.17,
+     "previous": 558.87,
+     "change": 63.3,
+     "change_pct": 11.3,
+     "share_pct": 5.02
+    },
+    {
+     "service": "Azure App Service",
+     "current": 570,
+     "previous": 570,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 4.6
+    },
+    {
+     "service": "Bandwidth",
+     "current": 347.59,
+     "previous": 332.45,
+     "change": 15.13,
+     "change_pct": 4.6,
+     "share_pct": 2.81
+    },
+    {
+     "service": "Functions",
+     "current": 233.74,
+     "previous": 221.19,
+     "change": 12.55,
+     "change_pct": 5.7,
+     "share_pct": 1.89
+    },
+    {
+     "service": "NAT Gateway",
+     "current": 214.7,
+     "previous": 193.17,
+     "change": 21.52,
+     "change_pct": 11.1,
+     "share_pct": 1.73
+    },
+    {
+     "service": "Microsoft Defender for Cloud",
+     "current": 180,
+     "previous": 180,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.45
+    },
+    {
+     "service": "Redis Cache",
+     "current": 99,
+     "previous": 99,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.8
+    },
+    {
+     "service": "Virtual Network",
+     "current": 90,
+     "previous": 90,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.73
+    },
+    {
+     "service": "Azure Kubernetes Service",
+     "current": 72,
+     "previous": 72,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.58
+    },
+    {
+     "service": "Azure Monitor",
+     "current": 44.54,
+     "previous": 44.02,
+     "change": 0.52,
+     "change_pct": 1.2,
+     "share_pct": 0.36
+    },
+    {
+     "service": "Container Registry",
+     "current": 20.1,
+     "previous": 20.1,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    },
+    {
+     "service": "Key Vault",
+     "current": 8.48,
+     "previous": 8.56,
+     "change": -0.08,
+     "change_pct": -0.9,
+     "share_pct": 0.07
+    }
+   ]
+  },
+  {
+   "region": "eu west",
+   "current": 1867.42,
+   "previous": 2260.33,
+   "change": -392.92,
+   "change_pct": -17.4,
+   "share_pct": 15.07,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 826.68,
+     "previous": 1440.46,
+     "change": -613.78,
+     "change_pct": -42.6,
+     "share_pct": 6.67
+    },
+    {
+     "service": "Storage",
+     "current": 478.76,
+     "previous": 463.26,
+     "change": 15.5,
+     "change_pct": 3.3,
+     "share_pct": 3.86
+    },
+    {
+     "service": "Azure Data Factory v2",
+     "current": 335.92,
+     "previous": 141.5,
+     "change": 194.42,
+     "change_pct": 137.4,
+     "share_pct": 2.71
+    },
+    {
+     "service": "Bandwidth",
+     "current": 118.05,
+     "previous": 107.12,
+     "change": 10.94,
+     "change_pct": 10.2,
+     "share_pct": 0.95
+    },
+    {
+     "service": "Event Hubs",
+     "current": 108,
+     "previous": 108,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.87
+    }
+   ]
+  },
+  {
+   "region": "us east 2",
+   "current": 545.7,
+   "previous": 294.93,
+   "change": 250.77,
+   "change_pct": 85,
+   "share_pct": 4.4,
+   "services": [
+    {
+     "service": "Foundry Models",
+     "current": 545.7,
+     "previous": 294.93,
+     "change": 250.77,
+     "change_pct": 85,
+     "share_pct": 4.4
+    }
+   ]
+  },
+  {
+   "region": "global",
+   "current": 149.61,
+   "previous": 149.4,
+   "change": 0.21,
+   "change_pct": 0.1,
+   "share_pct": 1.21,
+   "services": [
+    {
+     "service": "Azure Front Door Service",
+     "current": 149.61,
+     "previous": 149.4,
+     "change": 0.21,
+     "change_pct": 0.1,
+     "share_pct": 1.21
+    }
+   ]
+  },
+  {
+   "region": "us west 2",
+   "current": 42,
+   "previous": 42,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.34,
+   "services": [
+    {
+     "service": "Virtual Network",
+     "current": 42,
+     "previous": 42,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.34
+    }
+   ]
+  }
+ ],
+ "by_resource_group": [
+  {
+   "resource_group": "rg-app-prod · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod",
+   "current": 3330.48,
+   "previous": 3236.76,
+   "change": 93.72,
+   "change_pct": 2.9,
+   "share_pct": 26.88,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.compute/virtualmachines/vm-app-01",
+     "current": 1245.08,
+     "previous": 1193.3,
+     "change": 51.78,
+     "change_pct": 4.3,
+     "share_pct": 10.05
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.compute/virtualmachines/vm-app-02",
+     "current": 876.64,
+     "previous": 848.8,
+     "change": 27.84,
+     "change_pct": 3.3,
+     "share_pct": 7.08
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.web/serverfarms/asp-web-prod",
+     "current": 420,
+     "previous": 420,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 3.39
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.compute/disks/vm-app-01-data",
+     "current": 330,
+     "previous": 330,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 2.66
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.web/serverfarms/asp-func-prod",
+     "current": 233.74,
+     "previous": 221.19,
+     "change": 12.55,
+     "change_pct": 5.7,
+     "share_pct": 1.89
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.cache/redis/redis-sessions",
+     "current": 99,
+     "previous": 99,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.8
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.storage/storageaccounts/stappassets",
+     "current": 97.44,
+     "previous": 95.81,
+     "change": 1.64,
+     "change_pct": 1.7,
+     "share_pct": 0.79
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.containerregistry/registries/acmecr",
+     "current": 20.1,
+     "previous": 20.1,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-app-prod/providers/microsoft.keyvault/vaults/kv-app-prod",
+     "current": 8.48,
+     "previous": 8.56,
+     "change": -0.08,
+     "change_pct": -0.9,
+     "share_pct": 0.07
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-data-prod · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-data-prod",
+   "current": 1664.09,
+   "previous": 1597.17,
+   "change": 66.92,
+   "change_pct": 4.2,
+   "share_pct": 13.43,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-data-prod/providers/microsoft.sql/servers/sql-prod/databases/orders",
+     "current": 1041.93,
+     "previous": 1038.3,
+     "change": 3.62,
+     "change_pct": 0.3,
+     "share_pct": 8.41
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-data-prod/providers/microsoft.documentdb/databaseaccounts/cosmos-catalog",
+     "current": 622.17,
+     "previous": 558.87,
+     "change": 63.3,
+     "change_pct": 11.3,
+     "share_pct": 5.02
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-etl · acme-data",
+   "id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-etl",
+   "current": 1388.65,
+   "previous": 1797.07,
+   "change": -408.42,
+   "change_pct": -22.7,
+   "share_pct": 11.21,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-etl/providers/microsoft.compute/virtualmachines/vm-etl-worker",
+     "current": 944.73,
+     "previous": 1547.57,
+     "change": -602.84,
+     "change_pct": -39,
+     "share_pct": 7.63
+    },
+    {
+     "resource_id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-etl/providers/microsoft.datafactory/factories/adf-etl",
+     "current": 335.92,
+     "previous": 141.5,
+     "change": 194.42,
+     "change_pct": 137.4,
+     "share_pct": 2.71
+    },
+    {
+     "resource_id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-etl/providers/microsoft.eventhub/namespaces/evh-ingest",
+     "current": 108,
+     "previous": 108,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.87
+    }
+   ]
+  },
+  {
+   "resource_group": "mc_rg-aks-prod_aks-prod_eastus · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/mc_rg-aks-prod_aks-prod_eastus",
+   "current": 1335.52,
+   "previous": 1297.41,
+   "change": 38.11,
+   "change_pct": 2.9,
+   "share_pct": 10.78,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/mc_rg-aks-prod_aks-prod_eastus/providers/microsoft.compute/virtualmachinescalesets/aks-nodepool1-vmss",
+     "current": 1335.52,
+     "previous": 1297.41,
+     "change": 38.11,
+     "change_pct": 2.9,
+     "share_pct": 10.78
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-monitoring · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-monitoring",
+   "current": 988.77,
+   "previous": 717.26,
+   "change": 271.51,
+   "change_pct": 37.9,
+   "share_pct": 7.98,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-monitoring/providers/microsoft.operationalinsights/workspaces/log-prod",
+     "current": 944.23,
+     "previous": 673.23,
+     "change": 271,
+     "change_pct": 40.3,
+     "share_pct": 7.62
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-monitoring/providers/microsoft.insights/webtests/ping-home",
+     "current": 44.54,
+     "previous": 44.02,
+     "change": 0.52,
+     "change_pct": 1.2,
+     "share_pct": 0.36
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-ml · acme-data",
+   "id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-ml",
+   "current": 706.53,
+   "previous": 619.56,
+   "change": 86.97,
+   "change_pct": 14,
+   "share_pct": 5.7,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-ml/providers/microsoft.compute/virtualmachines/vm-gpu-train",
+     "current": 706.53,
+     "previous": 619.56,
+     "change": 86.97,
+     "change_pct": 14,
+     "share_pct": 5.7
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-ai-sandbox · sandbox-dev",
+   "id": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-ai-sandbox",
+   "current": 545.7,
+   "previous": 294.93,
+   "change": 250.77,
+   "change_pct": 85,
+   "share_pct": 4.4,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-ai-sandbox/providers/microsoft.cognitiveservices/accounts/oai-sandbox",
+     "current": 545.7,
+     "previous": 294.93,
+     "change": 250.77,
+     "change_pct": 85,
+     "share_pct": 4.4
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-lake · acme-data",
+   "id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-lake",
+   "current": 478.76,
+   "previous": 463.26,
+   "change": 15.5,
+   "change_pct": 3.3,
+   "share_pct": 3.86,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-lake/providers/microsoft.storage/storageaccounts/stlakeraw",
+     "current": 478.76,
+     "previous": 463.26,
+     "change": 15.5,
+     "change_pct": 3.3,
+     "share_pct": 3.86
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-data-staging · acme-staging",
+   "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-data-staging",
+   "current": 369,
+   "previous": 369,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 2.98,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-data-staging/providers/microsoft.sql/servers/sql-staging/databases/orders",
+     "current": 369,
+     "previous": 369,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 2.98
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-network · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-network",
+   "current": 304.7,
+   "previous": 283.17,
+   "change": 21.52,
+   "change_pct": 7.6,
+   "share_pct": 2.46,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-network/providers/microsoft.network/natgateways/ng-prod",
+     "current": 214.7,
+     "previous": 193.17,
+     "change": 21.52,
+     "change_pct": 11.1,
+     "share_pct": 1.73
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-network/providers/microsoft.network/privateendpoints/pe-sql-prod",
+     "current": 54,
+     "previous": 54,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.44
+    },
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-network/providers/microsoft.network/publicipaddresses/pip-ng-prod",
+     "current": 36,
+     "previous": 36,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.29
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-legacy · acme-staging",
+   "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy",
+   "current": 292.1,
+   "previous": 292.31,
+   "change": -0.21,
+   "change_pct": -0.1,
+   "share_pct": 2.36,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy/providers/microsoft.compute/virtualmachines/vm-legacy-ftp",
+     "current": 272.6,
+     "previous": 272.81,
+     "change": -0.21,
+     "change_pct": -0.1,
+     "share_pct": 2.2
+    },
+    {
+     "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy/providers/microsoft.compute/disks/vm-old-ftp-osdisk",
+     "current": 19.5,
+     "previous": 19.5,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-backup · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-backup",
+   "current": 222.1,
+   "previous": 198.94,
+   "change": 23.16,
+   "change_pct": 11.6,
+   "share_pct": 1.79,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-backup/providers/microsoft.compute/snapshots/snap-vm-app-01-2025",
+     "current": 222.1,
+     "previous": 198.94,
+     "change": 23.16,
+     "change_pct": 11.6,
+     "share_pct": 1.79
+    }
+   ]
+  },
+  {
+   "resource_group": "(no resource group) · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111",
+   "current": 180,
+   "previous": 180,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.45,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/providers/microsoft.security/pricings/virtualmachines",
+     "current": 180,
+     "previous": 180,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.45
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-monitoring · acme-staging",
+   "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-monitoring",
+   "current": 169.51,
+   "previous": 117.16,
+   "change": 52.34,
+   "change_pct": 44.7,
+   "share_pct": 1.37,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-monitoring/providers/microsoft.operationalinsights/workspaces/log-staging",
+     "current": 169.51,
+     "previous": 117.16,
+     "change": 52.34,
+     "change_pct": 44.7,
+     "share_pct": 1.37
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-app-staging · acme-staging",
+   "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-app-staging",
+   "current": 150,
+   "previous": 150,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.21,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-app-staging/providers/microsoft.web/serverfarms/asp-web-staging",
+     "current": 150,
+     "previous": 150,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.21
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-edge · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-edge",
+   "current": 149.61,
+   "previous": 149.4,
+   "change": 0.21,
+   "change_pct": 0.1,
+   "share_pct": 1.21,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-edge/providers/microsoft.cdn/profiles/afd-web",
+     "current": 149.61,
+     "previous": 149.4,
+     "change": 0.21,
+     "change_pct": 0.1,
+     "share_pct": 1.21
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-aks-prod · acme-prod",
+   "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-aks-prod",
+   "current": 72,
+   "previous": 72,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.58,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-aks-prod/providers/microsoft.containerservice/managedclusters/aks-prod",
+     "current": 72,
+     "previous": 72,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.58
+    }
+   ]
+  },
+  {
+   "resource_group": "rg-sandbox · sandbox-dev",
+   "id": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-sandbox",
+   "current": 42,
+   "previous": 42,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.34,
+   "resources": [
+    {
+     "resource_id": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-sandbox/providers/microsoft.network/publicipaddresses/pip-old-test",
+     "current": 42,
+     "previous": 42,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.34
+    }
+   ]
+  }
+ ],
+ "tag": "environment",
+ "by_tag": [
+  {
+   "value": "production",
+   "current": 9083.59,
+   "previous": 8935.65,
+   "change": 147.94,
+   "change_pct": 1.7,
+   "share_pct": 73.32,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 3307.34,
+     "previous": 3769.67,
+     "change": -462.33,
+     "change_pct": -12.3,
+     "share_pct": 26.69
+    },
+    {
+     "service": "SQL Database",
+     "current": 1041.93,
+     "previous": 1038.3,
+     "change": 3.62,
+     "change_pct": 0.3,
+     "share_pct": 8.41
+    },
+    {
+     "service": "Log Analytics",
+     "current": 944.23,
+     "previous": 673.23,
+     "change": 271,
+     "change_pct": 40.3,
+     "share_pct": 7.62
+    },
+    {
+     "service": "Storage",
+     "current": 906.21,
+     "previous": 889.07,
+     "change": 17.14,
+     "change_pct": 1.9,
+     "share_pct": 7.31
+    },
+    {
+     "service": "Azure Cosmos DB",
+     "current": 622.17,
+     "previous": 558.87,
+     "change": 63.3,
+     "change_pct": 11.3,
+     "share_pct": 5.02
+    },
+    {
+     "service": "Bandwidth",
+     "current": 465.64,
+     "previous": 439.57,
+     "change": 26.07,
+     "change_pct": 5.9,
+     "share_pct": 3.76
+    },
+    {
+     "service": "Azure App Service",
+     "current": 420,
+     "previous": 420,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 3.39
+    },
+    {
+     "service": "Azure Data Factory v2",
+     "current": 335.92,
+     "previous": 141.5,
+     "change": 194.42,
+     "change_pct": 137.4,
+     "share_pct": 2.71
+    },
+    {
+     "service": "Functions",
+     "current": 233.74,
+     "previous": 221.19,
+     "change": 12.55,
+     "change_pct": 5.7,
+     "share_pct": 1.89
+    },
+    {
+     "service": "NAT Gateway",
+     "current": 214.7,
+     "previous": 193.17,
+     "change": 21.52,
+     "change_pct": 11.1,
+     "share_pct": 1.73
+    },
+    {
+     "service": "Azure Front Door Service",
+     "current": 149.61,
+     "previous": 149.4,
+     "change": 0.21,
+     "change_pct": 0.1,
+     "share_pct": 1.21
+    },
+    {
+     "service": "Event Hubs",
+     "current": 108,
+     "previous": 108,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.87
+    },
+    {
+     "service": "Redis Cache",
+     "current": 99,
+     "previous": 99,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.8
+    },
+    {
+     "service": "Virtual Network",
+     "current": 90,
+     "previous": 90,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.73
+    },
+    {
+     "service": "Azure Kubernetes Service",
+     "current": 72,
+     "previous": 72,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.58
+    },
+    {
+     "service": "Azure Monitor",
+     "current": 44.54,
+     "previous": 44.02,
+     "change": 0.52,
+     "change_pct": 1.2,
+     "share_pct": 0.36
+    },
+    {
+     "service": "Container Registry",
+     "current": 20.1,
+     "previous": 20.1,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.16
+    },
+    {
+     "service": "Key Vault",
+     "current": 8.48,
+     "previous": 8.56,
+     "change": -0.08,
+     "change_pct": -0.9,
+     "share_pct": 0.07
+    }
+   ]
+  },
+  {
+   "value": "(untagged)",
+   "current": 2575.42,
+   "previous": 2263.59,
+   "change": 311.83,
+   "change_pct": 13.8,
+   "share_pct": 20.79,
+   "services": [
+    {
+     "service": "Virtual Machines",
+     "current": 1608.11,
+     "previous": 1570.22,
+     "change": 37.9,
+     "change_pct": 2.4,
+     "share_pct": 12.98
+    },
+    {
+     "service": "Foundry Models",
+     "current": 545.7,
+     "previous": 294.93,
+     "change": 250.77,
+     "change_pct": 85,
+     "share_pct": 4.4
+    },
+    {
+     "service": "Storage",
+     "current": 241.6,
+     "previous": 218.44,
+     "change": 23.16,
+     "change_pct": 10.6,
+     "share_pct": 1.95
+    },
+    {
+     "service": "Microsoft Defender for Cloud",
+     "current": 180,
+     "previous": 180,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.45
+    }
+   ],
+   "untagged": true
+  },
+  {
+   "value": "staging",
+   "current": 688.51,
+   "previous": 636.16,
+   "change": 52.34,
+   "change_pct": 8.2,
+   "share_pct": 5.56,
+   "services": [
+    {
+     "service": "SQL Database",
+     "current": 369,
+     "previous": 369,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 2.98
+    },
+    {
+     "service": "Log Analytics",
+     "current": 169.51,
+     "previous": 117.16,
+     "change": 52.34,
+     "change_pct": 44.7,
+     "share_pct": 1.37
+    },
+    {
+     "service": "Azure App Service",
+     "current": 150,
+     "previous": 150,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 1.21
+    }
+   ]
+  },
+  {
+   "value": "dev",
+   "current": 42,
+   "previous": 42,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.34,
+   "services": [
+    {
+     "service": "Virtual Network",
+     "current": 42,
+     "previous": 42,
+     "change": 0,
+     "change_pct": 0,
+     "share_pct": 0.34
+    }
+   ]
+  }
+ ],
+ "top_growers": [
+  {
+   "service": "Log Analytics",
+   "meter": "Analytics Logs Data Ingestion",
+   "current": 1113.73,
+   "previous": 790.39,
+   "change": 323.34,
+   "change_pct": 40.9,
+   "share_pct": 8.99
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "meter": "100 RU/s",
+   "current": 681.86,
+   "previous": 468.57,
+   "change": 213.29,
+   "change_pct": 45.5,
+   "share_pct": 5.5
+  },
+  {
+   "service": "Azure Data Factory v2",
+   "meter": "Cloud Data Movement",
+   "current": 335.92,
+   "previous": 141.5,
+   "change": 194.42,
+   "change_pct": 137.4,
+   "share_pct": 2.71
+  },
+  {
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Outp glbl Tokens",
+   "current": 326.21,
+   "previous": 177.21,
+   "change": 149.01,
+   "change_pct": 84.1,
+   "share_pct": 2.63
+  },
+  {
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Inp glbl Tokens",
+   "current": 219.49,
+   "previous": 117.72,
+   "change": 101.77,
+   "change_pct": 86.4,
+   "share_pct": 1.77
+  }
+ ],
+ "top_drops": [
+  {
+   "service": "Virtual Machines",
+   "meter": "E8s v5",
+   "current": 826.68,
+   "previous": 1440.46,
+   "change": -613.78,
+   "change_pct": -42.6,
+   "share_pct": 6.67
+  }
+ ],
+ "flags": [
+  {
+   "service": "Log Analytics",
+   "meter": "Analytics Logs Data Ingestion",
+   "current": 1113.73,
+   "reason": "Log Analytics ingestion — trim noisy tables, use Basic logs, or a commitment tier past 100 GB/day"
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "meter": "100 RU/s",
+   "current": 681.86,
+   "reason": "provisioned Cosmos DB throughput — autoscale or serverless costs less when load varies"
+  },
+  {
+   "service": "Bandwidth",
+   "meter": "Standard Data Transfer Out",
+   "current": 347.59,
+   "reason": "data transfer out — keep traffic in one region, cache at the edge"
+  },
+  {
+   "service": "Virtual Machines",
+   "meter": "D2 v2",
+   "current": 272.6,
+   "reason": "retiring VM series — D, Ds, Dv2, Dsv2 and Ls stop on 1 May 2028; current generations cost less for the same work"
+  },
+  {
+   "service": "Storage",
+   "meter": "LRS Snapshots",
+   "current": 222.1,
+   "reason": "snapshots — prune old ones; incremental snapshots on Standard storage cost less"
+  },
+  {
+   "service": "NAT Gateway",
+   "meter": "Standard Data Processed",
+   "current": 181.7,
+   "reason": "NAT data processing — service or private endpoints for Storage, SQL and ACR skip it"
+  },
+  {
+   "service": "Azure App Service",
+   "meter": "P1 v2 App",
+   "current": 150,
+   "reason": "Premium v2 App Service plans — Premium v3 gives more per dollar and can be reserved"
+  },
+  {
+   "service": "Bandwidth",
+   "meter": "Inter Continent Data Transfer Out - NAM or EU To Any",
+   "current": 118.05,
+   "reason": "data transfer out — keep traffic in one region, cache at the edge"
+  },
+  {
+   "service": "Redis Cache",
+   "meter": "C1 Cache Instance",
+   "current": 99,
+   "reason": "Azure Cache for Redis retires on 30 Sep 2028 (Enterprise tiers on 31 Mar 2027); plan the move to Azure Managed Redis"
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Standard Private Endpoint",
+   "current": 54,
+   "reason": "private endpoints — $0.01 an hour each plus data; remove the ones nothing uses"
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Basic IPv4 Static Public IP",
+   "current": 42,
+   "reason": "Basic public IPs — the Basic SKU retired on 30 Sep 2025, move to Standard"
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Standard IPv4 Static Public IP",
+   "current": 36,
+   "reason": "public IPs — billed per hour each; release the ones nothing uses"
+  }
+ ],
+ "hints": [
+  {
+   "kind": "spike",
+   "service": "Azure Data Factory v2",
+   "meter": "Cloud Data Movement",
+   "current": 335.92,
+   "previous": 141.5,
+   "change": 194.42,
+   "amount": 179.77,
+   "date": "2026-09-18",
+   "day_cost": 184.97,
+   "usual": 5.2
+  },
+  {
+   "kind": "pit",
+   "service": "Log Analytics",
+   "meter": "Analytics Logs Data Ingestion",
+   "current": 1113.73,
+   "previous": 790.39,
+   "change": 323.34,
+   "amount": 1113.73,
+   "reason": "Log Analytics ingestion — trim noisy tables, use Basic logs, or a commitment tier past 100 GB/day"
+  },
+  {
+   "kind": "grower",
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Outp glbl Tokens",
+   "current": 326.21,
+   "previous": 177.21,
+   "change": 149.01,
+   "amount": 149.01
+  },
+  {
+   "kind": "pit",
+   "service": "Azure Cosmos DB",
+   "meter": "100 RU/s",
+   "current": 681.86,
+   "previous": 468.57,
+   "change": 213.29,
+   "amount": 681.86,
+   "reason": "provisioned Cosmos DB throughput — autoscale or serverless costs less when load varies"
+  },
+  {
+   "kind": "grower",
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Inp glbl Tokens",
+   "current": 219.49,
+   "previous": 117.72,
+   "change": 101.77,
+   "amount": 101.77
+  },
+  {
+   "kind": "devtest",
+   "group": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-data-staging",
+   "label": "rg-data-staging · acme-staging",
+   "resources": 1,
+   "current": 369,
+   "amount": 369
+  },
+  {
+   "kind": "pit",
+   "service": "Bandwidth",
+   "meter": "Standard Data Transfer Out",
+   "current": 347.59,
+   "previous": 332.45,
+   "change": 15.13,
+   "amount": 347.59,
+   "reason": "data transfer out — keep traffic in one region, cache at the edge"
+  },
+  {
+   "kind": "pit",
+   "service": "Virtual Machines",
+   "meter": "D2 v2",
+   "current": 272.6,
+   "previous": 272.81,
+   "change": -0.21,
+   "amount": 272.6,
+   "reason": "retiring VM series — D, Ds, Dv2, Dsv2 and Ls stop on 1 May 2028; current generations cost less for the same work"
+  },
+  {
+   "kind": "pit",
+   "service": "Storage",
+   "meter": "LRS Snapshots",
+   "current": 222.1,
+   "previous": 198.94,
+   "change": 23.16,
+   "amount": 222.1,
+   "reason": "snapshots — prune old ones; incremental snapshots on Standard storage cost less"
+  },
+  {
+   "kind": "idle",
+   "check": "old-snapshot",
+   "label": "snap-vm-app-01-2025",
+   "reason": "old snapshot: older than 90 days; delete what no restore plan needs",
+   "resources": [
+    {
+     "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-backup/providers/microsoft.compute/snapshots/snap-vm-app-01-2025",
+     "name": "snap-vm-app-01-2025",
+     "group": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/rg-backup",
+     "current": 222.1
+    }
+   ],
+   "current": 222.1,
+   "amount": 222.1
+  },
+  {
+   "kind": "pit",
+   "service": "NAT Gateway",
+   "meter": "Standard Data Processed",
+   "current": 181.7,
+   "previous": 160.17,
+   "change": 21.52,
+   "amount": 181.7,
+   "reason": "NAT data processing — service or private endpoints for Storage, SQL and ACR skip it"
+  },
+  {
+   "kind": "pit",
+   "service": "Azure App Service",
+   "meter": "P1 v2 App",
+   "current": 150,
+   "previous": 150,
+   "change": 0,
+   "amount": 150,
+   "reason": "Premium v2 App Service plans — Premium v3 gives more per dollar and can be reserved"
+  },
+  {
+   "kind": "devtest",
+   "group": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-app-staging",
+   "label": "rg-app-staging · acme-staging",
+   "resources": 1,
+   "current": 150,
+   "amount": 150
+  },
+  {
+   "kind": "pit",
+   "service": "Bandwidth",
+   "meter": "Inter Continent Data Transfer Out - NAM or EU To Any",
+   "current": 118.05,
+   "previous": 107.12,
+   "change": 10.94,
+   "amount": 118.05,
+   "reason": "data transfer out — keep traffic in one region, cache at the edge"
+  },
+  {
+   "kind": "pit",
+   "service": "Redis Cache",
+   "meter": "C1 Cache Instance",
+   "current": 99,
+   "previous": 99,
+   "change": 0,
+   "amount": 99,
+   "reason": "Azure Cache for Redis retires on 30 Sep 2028 (Enterprise tiers on 31 Mar 2027); plan the move to Azure Managed Redis"
+  },
+  {
+   "kind": "pit",
+   "service": "Virtual Network",
+   "meter": "Standard Private Endpoint",
+   "current": 54,
+   "previous": 54,
+   "change": 0,
+   "amount": 54,
+   "reason": "private endpoints — $0.01 an hour each plus data; remove the ones nothing uses"
+  },
+  {
+   "kind": "pit",
+   "service": "Virtual Network",
+   "meter": "Basic IPv4 Static Public IP",
+   "current": 42,
+   "previous": 42,
+   "change": 0,
+   "amount": 42,
+   "reason": "Basic public IPs — the Basic SKU retired on 30 Sep 2025, move to Standard"
+  },
+  {
+   "kind": "idle",
+   "check": "unused-ip",
+   "label": "pip-old-test",
+   "reason": "unused public IP: attached to nothing, and public IPs bill by the hour; release what nothing uses",
+   "resources": [
+    {
+     "id": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-sandbox/providers/microsoft.network/publicipaddresses/pip-old-test",
+     "name": "pip-old-test",
+     "group": "/subscriptions/44444444-4444-4444-4444-444444444444/resourcegroups/rg-sandbox",
+     "current": 42
+    }
+   ],
+   "current": 42,
+   "amount": 42
+  },
+  {
+   "kind": "pit",
+   "service": "Virtual Network",
+   "meter": "Standard IPv4 Static Public IP",
+   "current": 36,
+   "previous": 36,
+   "change": 0,
+   "amount": 36,
+   "reason": "public IPs — billed per hour each; release the ones nothing uses"
+  },
+  {
+   "kind": "idle",
+   "check": "unattached-disk",
+   "label": "vm-old-ftp-osdisk",
+   "reason": "unattached disk: attached to no VM; snapshot what you need, then delete",
+   "resources": [
+    {
+     "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy/providers/microsoft.compute/disks/vm-old-ftp-osdisk",
+     "name": "vm-old-ftp-osdisk",
+     "group": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy",
+     "current": 19.5
+    }
+   ],
+   "current": 19.5,
+   "amount": 19.5
+  }
+ ],
+ "advisor": [
+  {
+   "problem": "Consider SQL PaaS DB reserved instance to save over the pay-as-you-go costs",
+   "solution": "Consider SQL PaaS DB reserved instance to save over the pay-as-you-go costs",
+   "impact": "High",
+   "resource": "/subscriptions/11111111-1111-1111-1111-111111111111",
+   "resource_name": "acme-prod",
+   "resource_type": null,
+   "sku": "SQL DB Single/Elastic Pool - General Purpose - Gen 5",
+   "term": "P3Y",
+   "annual_savings": 4380,
+   "currency": "USD",
+   "subscription": "acme-prod",
+   "covers": [
+    {
+     "service": "SQL Database",
+     "meter": "vCore",
+     "current": 1230
+    }
+   ],
+   "covers_monthly": 1246.4
+  },
+  {
+   "problem": "Consider purchasing a savings plan to unlock lower prices",
+   "solution": "Consider purchasing a savings plan to unlock lower prices",
+   "impact": "High",
+   "resource": "/subscriptions/11111111-1111-1111-1111-111111111111",
+   "resource_name": "acme-prod",
+   "resource_type": null,
+   "sku": "Compute_Savings_Plan",
+   "term": "P1Y",
+   "annual_savings": 3120,
+   "currency": "USD",
+   "subscription": "acme-prod",
+   "covers": [
+    {
+     "service": "Virtual Machines",
+     "meter": "D4s v5",
+     "current": 1774.13
+    },
+    {
+     "service": "Virtual Machines",
+     "meter": "D8s v5",
+     "current": 1335.52
+    },
+    {
+     "service": "Virtual Machines",
+     "meter": "E8s v5",
+     "current": 826.68
+    },
+    {
+     "service": "Virtual Machines",
+     "meter": "NC8as T4 v3",
+     "current": 706.53
+    },
+    {
+     "service": "Azure App Service",
+     "meter": "P1 v3 App",
+     "current": 420
+    },
+    {
+     "service": "Virtual Machines",
+     "meter": "D2 v2",
+     "current": 272.6
+    },
+    {
+     "service": "Functions",
+     "meter": "Premium vCPU Duration",
+     "current": 233.74
+    }
+   ],
+   "covers_monthly": 5643.46
+  },
+  {
+   "problem": "Right-size or shutdown underutilized virtual machines",
+   "solution": "Right-size or shutdown underutilized virtual machines",
+   "impact": "High",
+   "resource": "/subscriptions/33333333-3333-3333-3333-333333333333/resourcegroups/rg-etl/providers/microsoft.compute/virtualmachines/vm-etl-worker",
+   "resource_name": "vm-etl-worker",
+   "resource_type": null,
+   "sku": "Standard_E4s_v5",
+   "term": null,
+   "annual_savings": 2150,
+   "currency": "USD",
+   "subscription": "acme-data",
+   "covers": [],
+   "covers_monthly": 0
+  },
+  {
+   "problem": "Consider Cosmos DB reserved instance to save over the pay-as-you-go costs",
+   "solution": "Consider Cosmos DB reserved instance to save over the pay-as-you-go costs",
+   "impact": "High",
+   "resource": "/subscriptions/11111111-1111-1111-1111-111111111111",
+   "resource_name": "acme-prod",
+   "resource_type": null,
+   "sku": "100 RU/s",
+   "term": "P1Y",
+   "annual_savings": 1020,
+   "currency": "USD",
+   "subscription": "acme-prod",
+   "covers": [
+    {
+     "service": "Azure Cosmos DB",
+     "meter": "100 RU/s",
+     "current": 681.86
+    }
+   ],
+   "covers_monthly": 690.95
+  },
+  {
+   "problem": "Right-size or shutdown underutilized virtual machines",
+   "solution": "Right-size or shutdown underutilized virtual machines",
+   "impact": "High",
+   "resource": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-legacy/providers/microsoft.compute/virtualmachines/vm-legacy-ftp",
+   "resource_name": "vm-legacy-ftp",
+   "resource_type": null,
+   "sku": "Standard_B2s",
+   "term": null,
+   "annual_savings": 640,
+   "currency": "USD",
+   "subscription": "acme-staging",
+   "covers": [],
+   "covers_monthly": 0
+  }
+ ],
+ "advisor_error": null,
+ "resource_fallback": [],
+ "graph_error": null,
+ "forecast": {
+  "month": "2026-09",
+  "actual": 10782.16,
+  "forecast": 1590.71,
+  "total": 12372.87
+ },
+ "line_items": [
+  {
+   "service": "Virtual Machines",
+   "meter": "D4s v5",
+   "current": 1774.13,
+   "previous": 1709.65,
+   "change": 64.48,
+   "change_pct": 3.8,
+   "share_pct": 14.32
+  },
+  {
+   "service": "Virtual Machines",
+   "meter": "D8s v5",
+   "current": 1335.52,
+   "previous": 1297.41,
+   "change": 38.11,
+   "change_pct": 2.9,
+   "share_pct": 10.78
+  },
+  {
+   "service": "SQL Database",
+   "meter": "vCore",
+   "current": 1230,
+   "previous": 1230,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 9.93
+  },
+  {
+   "service": "Log Analytics",
+   "meter": "Analytics Logs Data Ingestion",
+   "current": 1113.73,
+   "previous": 790.39,
+   "change": 323.34,
+   "change_pct": 40.9,
+   "share_pct": 8.99
+  },
+  {
+   "service": "Virtual Machines",
+   "meter": "E8s v5",
+   "current": 826.68,
+   "previous": 1440.46,
+   "change": -613.78,
+   "change_pct": -42.6,
+   "share_pct": 6.67
+  },
+  {
+   "service": "Virtual Machines",
+   "meter": "NC8as T4 v3",
+   "current": 706.53,
+   "previous": 619.56,
+   "change": 86.97,
+   "change_pct": 14,
+   "share_pct": 5.7
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "meter": "100 RU/s",
+   "current": 681.86,
+   "previous": 468.57,
+   "change": 213.29,
+   "change_pct": 45.5,
+   "share_pct": 5.5
+  },
+  {
+   "service": "Storage",
+   "meter": "Hot LRS Data Stored",
+   "current": 489.73,
+   "previous": 474.07,
+   "change": 15.66,
+   "change_pct": 3.3,
+   "share_pct": 3.95
+  },
+  {
+   "service": "Azure App Service",
+   "meter": "P1 v3 App",
+   "current": 420,
+   "previous": 420,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 3.39
+  },
+  {
+   "service": "Bandwidth",
+   "meter": "Standard Data Transfer Out",
+   "current": 347.59,
+   "previous": 332.45,
+   "change": 15.13,
+   "change_pct": 4.6,
+   "share_pct": 2.81
+  },
+  {
+   "service": "Azure Data Factory v2",
+   "meter": "Cloud Data Movement",
+   "current": 335.92,
+   "previous": 141.5,
+   "change": 194.42,
+   "change_pct": 137.4,
+   "share_pct": 2.71
+  },
+  {
+   "service": "Storage",
+   "meter": "P30 LRS Disk",
+   "current": 330,
+   "previous": 330,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 2.66
+  },
+  {
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Outp glbl Tokens",
+   "current": 326.21,
+   "previous": 177.21,
+   "change": 149.01,
+   "change_pct": 84.1,
+   "share_pct": 2.63
+  },
+  {
+   "service": "Virtual Machines",
+   "meter": "D2 v2",
+   "current": 272.6,
+   "previous": 272.81,
+   "change": -0.21,
+   "change_pct": -0.1,
+   "share_pct": 2.2
+  },
+  {
+   "service": "Functions",
+   "meter": "Premium vCPU Duration",
+   "current": 233.74,
+   "previous": 221.19,
+   "change": 12.55,
+   "change_pct": 5.7,
+   "share_pct": 1.89
+  },
+  {
+   "service": "Storage",
+   "meter": "LRS Snapshots",
+   "current": 222.1,
+   "previous": 198.94,
+   "change": 23.16,
+   "change_pct": 11.6,
+   "share_pct": 1.79
+  },
+  {
+   "service": "Foundry Models",
+   "meter": "gpt 4.1 Inp glbl Tokens",
+   "current": 219.49,
+   "previous": 117.72,
+   "change": 101.77,
+   "change_pct": 86.4,
+   "share_pct": 1.77
+  },
+  {
+   "service": "NAT Gateway",
+   "meter": "Standard Data Processed",
+   "current": 181.7,
+   "previous": 160.17,
+   "change": 21.52,
+   "change_pct": 13.4,
+   "share_pct": 1.47
+  },
+  {
+   "service": "SQL Database",
+   "meter": "RA-GRS Data Stored",
+   "current": 180.93,
+   "previous": 177.3,
+   "change": 3.62,
+   "change_pct": 2,
+   "share_pct": 1.46
+  },
+  {
+   "service": "Microsoft Defender for Cloud",
+   "meter": "Standard Node",
+   "current": 180,
+   "previous": 180,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.45
+  },
+  {
+   "service": "Azure App Service",
+   "meter": "P1 v2 App",
+   "current": 150,
+   "previous": 150,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 1.21
+  },
+  {
+   "service": "Bandwidth",
+   "meter": "Inter Continent Data Transfer Out - NAM or EU To Any",
+   "current": 118.05,
+   "previous": 107.12,
+   "change": 10.94,
+   "change_pct": 10.2,
+   "share_pct": 0.95
+  },
+  {
+   "service": "Azure Front Door Service",
+   "meter": "Standard Data Transfer Out",
+   "current": 113.61,
+   "previous": 113.4,
+   "change": 0.21,
+   "change_pct": 0.2,
+   "share_pct": 0.92
+  },
+  {
+   "service": "Event Hubs",
+   "meter": "Standard Throughput Unit",
+   "current": 108,
+   "previous": 108,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.87
+  },
+  {
+   "service": "Redis Cache",
+   "meter": "C1 Cache Instance",
+   "current": 99,
+   "previous": 99,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.8
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "meter": "Data Stored",
+   "current": 90.31,
+   "previous": 90.3,
+   "change": 0.01,
+   "change_pct": 0,
+   "share_pct": 0.73
+  },
+  {
+   "service": "Storage",
+   "meter": "Hot LRS Write Operations",
+   "current": 86.48,
+   "previous": 85,
+   "change": 1.48,
+   "change_pct": 1.7,
+   "share_pct": 0.7
+  },
+  {
+   "service": "Azure Kubernetes Service",
+   "meter": "Standard Uptime SLA",
+   "current": 72,
+   "previous": 72,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.58
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Standard Private Endpoint",
+   "current": 54,
+   "previous": 54,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.44
+  },
+  {
+   "service": "Azure Monitor",
+   "meter": "Standard Web Test Execution",
+   "current": 44.54,
+   "previous": 44.02,
+   "change": 0.52,
+   "change_pct": 1.2,
+   "share_pct": 0.36
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Basic IPv4 Static Public IP",
+   "current": 42,
+   "previous": 42,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.34
+  },
+  {
+   "service": "Azure Front Door Service",
+   "meter": "Standard Base Fees",
+   "current": 36,
+   "previous": 36,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.29
+  },
+  {
+   "service": "Virtual Network",
+   "meter": "Standard IPv4 Static Public IP",
+   "current": 36,
+   "previous": 36,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.29
+  },
+  {
+   "service": "NAT Gateway",
+   "meter": "Standard Gateway",
+   "current": 33,
+   "previous": 33,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.27
+  },
+  {
+   "service": "Container Registry",
+   "meter": "Standard Registry Unit",
+   "current": 20.1,
+   "previous": 20.1,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.16
+  },
+  {
+   "service": "Storage",
+   "meter": "P10 LRS Disk",
+   "current": 19.5,
+   "previous": 19.5,
+   "change": 0,
+   "change_pct": 0,
+   "share_pct": 0.16
+  },
+  {
+   "service": "Key Vault",
+   "meter": "Operations",
+   "current": 8.48,
+   "previous": 8.56,
+   "change": -0.08,
+   "change_pct": -0.9,
+   "share_pct": 0.07
+  },
+  {
+   "service": "Azure Cosmos DB",
+   "meter": "Reserved 100 RU/s",
+   "current": -150,
+   "previous": 0,
+   "change": -150,
+   "change_pct": null,
+   "share_pct": -1.21
+  }
+ ],
+ "daily_totals": [
+  {
+   "date": "2026-07-29",
+   "cost": 399.56
+  },
+  {
+   "date": "2026-07-30",
+   "cost": 383.94
+  },
+  {
+   "date": "2026-07-31",
+   "cost": 397.2
+  },
+  {
+   "date": "2026-08-01",
+   "cost": 388.1
+  },
+  {
+   "date": "2026-08-02",
+   "cost": 364.54
+  },
+  {
+   "date": "2026-08-03",
+   "cost": 396.37
+  },
+  {
+   "date": "2026-08-04",
+   "cost": 394.52
+  },
+  {
+   "date": "2026-08-05",
+   "cost": 395.07
+  },
+  {
+   "date": "2026-08-06",
+   "cost": 396.86
+  },
+  {
+   "date": "2026-08-07",
+   "cost": 397.35
+  },
+  {
+   "date": "2026-08-08",
+   "cost": 388.18
+  },
+  {
+   "date": "2026-08-09",
+   "cost": 391.9
+  },
+  {
+   "date": "2026-08-10",
+   "cost": 394.05
+  },
+  {
+   "date": "2026-08-11",
+   "cost": 395.32
+  },
+  {
+   "date": "2026-08-12",
+   "cost": 398.09
+  },
+  {
+   "date": "2026-08-13",
+   "cost": 390.1
+  },
+  {
+   "date": "2026-08-14",
+   "cost": 402.18
+  },
+  {
+   "date": "2026-08-15",
+   "cost": 386.75
+  },
+  {
+   "date": "2026-08-16",
+   "cost": 399.15
+  },
+  {
+   "date": "2026-08-17",
+   "cost": 397.99
+  },
+  {
+   "date": "2026-08-18",
+   "cost": 404.4
+  },
+  {
+   "date": "2026-08-19",
+   "cost": 395.72
+  },
+  {
+   "date": "2026-08-20",
+   "cost": 398.55
+  },
+  {
+   "date": "2026-08-21",
+   "cost": 414.36
+  },
+  {
+   "date": "2026-08-22",
+   "cost": 384.74
+  },
+  {
+   "date": "2026-08-23",
+   "cost": 389.94
+  },
+  {
+   "date": "2026-08-24",
+   "cost": 410.37
+  },
+  {
+   "date": "2026-08-25",
+   "cost": 411.22
+  },
+  {
+   "date": "2026-08-26",
+   "cost": 402.91
+  },
+  {
+   "date": "2026-08-27",
+   "cost": 407.99
+  },
+  {
+   "date": "2026-08-28",
+   "cost": 421.32
+  },
+  {
+   "date": "2026-08-29",
+   "cost": 390.79
+  },
+  {
+   "date": "2026-08-30",
+   "cost": 388.73
+  },
+  {
+   "date": "2026-08-31",
+   "cost": 406.52
+  },
+  {
+   "date": "2026-09-01",
+   "cost": 419.66
+  },
+  {
+   "date": "2026-09-02",
+   "cost": 403.42
+  },
+  {
+   "date": "2026-09-03",
+   "cost": 418.13
+  },
+  {
+   "date": "2026-09-04",
+   "cost": 406.95
+  },
+  {
+   "date": "2026-09-05",
+   "cost": 399.47
+  },
+  {
+   "date": "2026-09-06",
+   "cost": 400.67
+  },
+  {
+   "date": "2026-09-07",
+   "cost": 412.97
+  },
+  {
+   "date": "2026-09-08",
+   "cost": 421.5
+  },
+  {
+   "date": "2026-09-09",
+   "cost": 421.2
+  },
+  {
+   "date": "2026-09-10",
+   "cost": 415.83
+  },
+  {
+   "date": "2026-09-11",
+   "cost": 409.21
+  },
+  {
+   "date": "2026-09-12",
+   "cost": 396.67
+  },
+  {
+   "date": "2026-09-13",
+   "cost": 396.74
+  },
+  {
+   "date": "2026-09-14",
+   "cost": 418.28
+  },
+  {
+   "date": "2026-09-15",
+   "cost": 412.74
+  },
+  {
+   "date": "2026-09-16",
+   "cost": 422.3
+  },
+  {
+   "date": "2026-09-17",
+   "cost": 421.29
+  },
+  {
+   "date": "2026-09-18",
+   "cost": 603.42
+  },
+  {
+   "date": "2026-09-19",
+   "cost": 397.99
+  },
+  {
+   "date": "2026-09-20",
+   "cost": 405.23
+  },
+  {
+   "date": "2026-09-21",
+   "cost": 279.25
+  },
+  {
+   "date": "2026-09-22",
+   "cost": 421.28
+  },
+  {
+   "date": "2026-09-23",
+   "cost": 423.85
+  },
+  {
+   "date": "2026-09-24",
+   "cost": 426.59
+  },
+  {
+   "date": "2026-09-25",
+   "cost": 424.03
+  },
+  {
+   "date": "2026-09-26",
+   "cost": 403.51
+  }
+ ]
+}
