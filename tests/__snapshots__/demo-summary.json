@@ -1,6 +1,6 @@
 {
  "tool": "azcost",
- "instructions_for_ai": "This is an Azure cost breakdown exported by azcost. Amounts are in `currency`, for the cost type in `metric` (ActualCost books reservation and savings plan purchases on the day they were bought; AmortizedCost spreads them over the term). When `currency` is \"mixed\", the subscriptions bill in the currencies listed in `currencies` and Azure didn't convert them, so totals add different currencies: compare amounts within one subscription only. `usd_rate` is units of `currency` per US dollar, as this bill priced them (null when unknown). `current` is the period in `period.label` and `previous` is what it's compared with: the equally long period before it, the same days of last month (month to date), or the month before (a full month); `period` gives both date ranges. Line items are Azure meters grouped by service; `totals.credits_and_refunds` is the part of `current` that comes from negative line items (credits, refunds). `resource_fallback` names subscriptions with so many resources that azcost read one total per resource and period for them: their resource groups' amounts are right, but daily detail and dev/test always-on checks aren't available there. `flags` are known cost traps matched on meter names. `hints` is the list the page shows under Worth a look: news (growers, one-off spikes) taking turns with to-dos (money pits, always-on compute in dev/test groups, idle resources, steady spend worth committing). `advisor` holds Azure Advisor's cost recommendations, one per kind, resource and SKU, with the largest annual saving Advisor reported; recommendations that cover the same usage (a reservation and a savings plan, a 1-year and a 3-year term) are alternatives, not additive. A tip's `covers` lists the meters its reservation or savings plan would cover, matched across the whole bill, so in a multi-subscription export it can include other subscriptions' usage. `by_tag` splits the bill by the values of the tag named in `tag`; the row marked `untagged: true` (shown as \"(untagged)\") is spend on resources without it. `forecast` is Azure's own forecast for the current calendar month: `actual` is billed so far, `forecast` is still to come and `total` is both. Hints of kind `idle` are resources Azure Resource Graph found billing while doing nothing (VMs stopped but still allocated, unattached disks, unused public IPs, snapshots older than 90 days, App Service plans with no apps, NAT gateways on no subnet), with what they cost in the current period. Please: 1) explain what drives the cost, 2) explain notable changes vs the previous period, 3) suggest concrete savings, each with an estimated monthly saving and how to verify it. Levers to consider: reservations and savings plans for steady compute and databases; Azure Hybrid Benefit for Windows Server and SQL Server licenses already owned; dev/test pricing for non-production subscriptions; right-sizing and auto-shutdown for VMs and App Service plans; blob access tiers (cool, cold, archive) and lifecycle rules; Log Analytics commitment tier pricing, Basic logs and shorter table retention; and keeping data transfer inside one region.",
+ "instructions_for_ai": "This is an Azure cost breakdown exported by azcost. Amounts are in `currency`, for the cost type in `metric` (ActualCost books reservation and savings plan purchases on the day they were bought; AmortizedCost spreads them over the term). When `currency` is \"mixed\", the subscriptions bill in the currencies listed in `currencies` and Azure didn't convert them, so totals add different currencies: compare amounts within one subscription only. `usd_rate` is units of `currency` per US dollar, as this bill priced them (null when unknown). `current` is the period in `period.label` and `previous` is what it's compared with: the equally long period before it, the same days of last month (month to date), or the month before (a full month); `period` gives both date ranges. Line items are Azure meters grouped by service; `totals.credits_and_refunds` is the part of `current` that comes from negative line items (credits, refunds). `resource_fallback` names subscriptions with so many resources that azcost read one total per resource and period for them: their resource groups' amounts are right, but daily detail and dev/test always-on checks aren't available there. `flags` are known cost traps matched on meter names. `hints` is the list the page shows under Worth a look: news (growers, one-off spikes) taking turns with to-dos (money pits, always-on compute in dev/test groups, idle resources, steady spend worth committing). `advisor` holds Azure Advisor's cost recommendations, one per kind, resource and SKU, with the largest annual saving Advisor reported; recommendations that cover the same usage (a reservation and a savings plan, a 1-year and a 3-year term) are alternatives, not additive. A tip's `covers` lists the meters its reservation or savings plan would cover, matched across the whole bill, so in a multi-subscription export it can include other subscriptions' usage. `budgets` are the subscriptions' cost budgets with Azure's own spend (`current`) and `forecast` for each budget's own period (`time_grain`), not the export's period; hints of kind `budget` are budgets spent or forecast past their amount. `by_tag` splits the bill by the values of the tag named in `tag`; the row marked `untagged: true` (shown as \"(untagged)\") is spend on resources without it. `forecast` is Azure's own forecast for the current calendar month: `actual` is billed so far, `forecast` is still to come and `total` is both. Hints of kind `idle` are resources Azure Resource Graph found billing while doing nothing (VMs stopped but still allocated, unattached disks, unused public IPs, snapshots older than 90 days, App Service plans with no apps, NAT gateways on no subnet), with what they cost in the current period. Please: 1) explain what drives the cost, 2) explain notable changes vs the previous period, 3) suggest concrete savings, each with an estimated monthly saving and how to verify it. Levers to consider: reservations and savings plans for steady compute and databases; Azure Hybrid Benefit for Windows Server and SQL Server licenses already owned; dev/test pricing for non-production subscriptions; right-sizing and auto-shutdown for VMs and App Service plans; blob access tiers (cool, cold, archive) and lifecycle rules; Log Analytics commitment tier pricing, Basic logs and shorter table retention; and keeping data transfer inside one region.",
  "generated": "2026-09-28 10:00",
  "metric": "ActualCost",
  "currency": "USD",
@@ -1638,6 +1638,19 @@
    "amount": 101.77
   },
   {
+   "kind": "budget",
+   "budget": "prod-monthly",
+   "subscription_id": "11111111-1111-1111-1111-111111111111",
+   "label": "acme-prod",
+   "budget_amount": 8000,
+   "time_grain": "Monthly",
+   "forecast": 8650,
+   "currency": "USD",
+   "reason": "forecast to reach 108% of its monthly budget by the end of the month",
+   "current": 7420,
+   "amount": 650
+  },
+  {
    "kind": "devtest",
    "group": "/subscriptions/22222222-2222-2222-2222-222222222222/resourcegroups/rg-data-staging",
    "label": "rg-data-staging · acme-staging",
@@ -1717,6 +1730,19 @@
    "label": "rg-app-staging · acme-staging",
    "resources": 1,
    "current": 150,
+   "amount": 150
+  },
+  {
+   "kind": "budget",
+   "budget": "sandbox-cap",
+   "subscription_id": "44444444-4444-4444-4444-444444444444",
+   "label": "sandbox-dev",
+   "budget_amount": 300,
+   "time_grain": "Monthly",
+   "forecast": 450,
+   "currency": "USD",
+   "reason": "already 137% of its monthly budget",
+   "current": 410,
    "amount": 150
   },
   {
@@ -1928,6 +1954,53 @@
   }
  ],
  "advisor_error": null,
+ "budgets": [
+  {
+   "name": "prod-monthly",
+   "subscription": "acme-prod",
+   "subscription_id": "11111111-1111-1111-1111-111111111111",
+   "amount": 8000,
+   "time_grain": "Monthly",
+   "current": 7420,
+   "forecast": 8650,
+   "currency": "USD",
+   "filtered": false
+  },
+  {
+   "name": "staging-monthly",
+   "subscription": "acme-staging",
+   "subscription_id": "22222222-2222-2222-2222-222222222222",
+   "amount": 1500,
+   "time_grain": "Monthly",
+   "current": 900,
+   "forecast": 1150,
+   "currency": "USD",
+   "filtered": false
+  },
+  {
+   "name": "sandbox-cap",
+   "subscription": "sandbox-dev",
+   "subscription_id": "44444444-4444-4444-4444-444444444444",
+   "amount": 300,
+   "time_grain": "Monthly",
+   "current": 410,
+   "forecast": 450,
+   "currency": "USD",
+   "filtered": false
+  },
+  {
+   "name": "lake-storage",
+   "subscription": "acme-data",
+   "subscription_id": "33333333-3333-3333-3333-333333333333",
+   "amount": 900,
+   "time_grain": "Monthly",
+   "current": 560,
+   "forecast": 700,
+   "currency": "USD",
+   "filtered": true
+  }
+ ],
+ "budget_error": null,
  "resource_fallback": [],
  "graph_error": null,
  "forecast": {

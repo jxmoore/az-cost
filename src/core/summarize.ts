@@ -83,7 +83,7 @@ const MIN_PATTERN_DAYS = 7; // "flat" or "steady" means little over fewer days t
 const ALWAYS_ON = /\/providers\/microsoft\.(?:compute\/(?:virtualmachines|virtualmachinescalesets)|web\/serverfarms|sql\/servers\/[^/]+\/(?:databases|elasticpools)|documentdb\/databaseaccounts|containerservice\/managedclusters)\//i;
 
 export interface Hint {
-  kind: "grower" | "spike" | "pit" | "devtest" | "steady" | "idle";
+  kind: "grower" | "spike" | "pit" | "devtest" | "steady" | "idle" | "budget";
   amount: number;
   current: number;
   service?: string;
@@ -100,6 +100,12 @@ export interface Hint {
   meters?: string[];
   monthly?: number;
   check?: string;
+  budget?: string; // budget: its name, subscription, size, grain and forecast
+  subscription_id?: string;
+  budget_amount?: number;
+  time_grain?: string;
+  forecast?: number | null;
+  currency?: string | null;
 }
 
 /** Dev/test resource groups whose compute runs flat all period (lowest day at least 90% of the highest):
@@ -247,6 +253,33 @@ function idle(data: CostData, rate = 1): Hint[] {
   return hints;
 }
 
+// a budget's time grain in words: "its monthly budget ... by the end of the month"
+const GRAIN: Record<string, [string, string]> = {
+  Monthly: ["monthly", "month"], Quarterly: ["quarterly", "quarter"], Annually: ["annual", "year"],
+  BillingMonth: ["billing-month", "billing month"], BillingQuarter: ["billing-quarter", "billing quarter"], BillingAnnual: ["billing-year", "billing year"],
+};
+
+/** Budgets already spent past, or forecast to be, one hint each: by how much, in the budget's own money. Azure
+ * computes both for the budget's own period (a month, a quarter, a year), whatever period the run reads. */
+function overBudget(data: CostData): Hint[] {
+  const hints: Hint[] = [];
+  for (const b of data.budgets ?? []) {
+    const spent = b.current ?? 0, forecast = b.forecast ?? spent, worst = Math.max(spent, forecast);
+    if (!(b.amount > 0) || worst <= b.amount) continue;
+    const [adjective, noun] = GRAIN[b.time_grain] ?? ["", "period"];
+    const reason = spent > b.amount
+      ? `already ${Math.round(100 * spent / b.amount)}% of its ${adjective} budget`
+      : `forecast to reach ${Math.round(100 * forecast / b.amount)}% of its ${adjective} budget by the end of the ${noun}`;
+    hints.push({
+      kind: "budget", budget: b.name, subscription_id: b.subscription_id, label: b.subscription,
+      budget_amount: b.amount, time_grain: b.time_grain, forecast: b.forecast, currency: b.currency,
+      reason: reason.replace("  ", " ") + (b.filtered ? " (the budget covers part of the subscription)" : ""),
+      current: money(spent), amount: money(worst - b.amount),
+    });
+  }
+  return hints;
+}
+
 // ---------------------------------------------------------------- the export
 
 const AI_INSTRUCTIONS =
@@ -267,6 +300,8 @@ const AI_INSTRUCTIONS =
   "reported; recommendations that cover the same usage (a reservation and a savings plan, a 1-year and a 3-year term) " +
   "are alternatives, not additive. A tip's `covers` lists the meters its reservation or savings plan would cover, " +
   "matched across the whole bill, so in a multi-subscription export it can include other subscriptions' usage. " +
+  "`budgets` are the subscriptions' cost budgets with Azure's own spend (`current`) and `forecast` for each budget's own " +
+  "period (`time_grain`), not the export's period; hints of kind `budget` are budgets spent or forecast past their amount. " +
   "`by_tag` splits the bill by the values of the tag named in `tag`; the row marked `untagged: true` (shown as " +
   "\"(untagged)\") is spend on resources without it. `forecast` is Azure's own forecast for the current calendar month: `actual` is billed so far, `forecast` is " +
   "still to come and `total` is both. Hints of kind `idle` are resources Azure Resource Graph found billing while " +
@@ -307,6 +342,8 @@ export interface Summary {
   hints: Hint[];
   advisor: LinkedTip[] | null;
   advisor_error: string | null;
+  budgets: CostData["budgets"] | null;
+  budget_error: string | null;
   resource_fallback: string[];
   graph_error: string | null;
   forecast: Forecast | null;
@@ -426,7 +463,7 @@ export function summarize(data: CostData): Summary {
   if (!advisorHasCommitments && data.metric !== "AmortizedCost") { // amortized, reserved usage looks flat too
     todos = todos.concat(steady(data, new Set(lineItems.map(x => K(x.service, x.meter))), n, rate));
   }
-  todos = todos.concat(alwaysOn(data, Math.max(10 * rate, grand * 0.002)), idle(data, rate)).sort((a, b) => b.amount - a.amount);
+  todos = todos.concat(alwaysOn(data, Math.max(10 * rate, grand * 0.002)), idle(data, rate), overBudget(data)).sort((a, b) => b.amount - a.amount);
   const flagged = new Set(flags.map(f => K(f.service, f.meter)));
   const news = [...spiked.values(),
     ...growing.filter(x => !flagged.has(K(x.service, x.meter)) && !spiked.has(K(x.service, x.meter))).map(x => hint("grower", x, x.change)),
@@ -473,6 +510,8 @@ export function summarize(data: CostData): Summary {
     hints,
     advisor,
     advisor_error: data.advisor_error ?? null,
+    budgets: data.budgets ?? null,
+    budget_error: data.budget_error ?? null,
     resource_fallback: data.resource_fallback ?? [],
     graph_error: data.graph_error ?? null,
     forecast: data.forecast ?? null,

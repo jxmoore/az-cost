@@ -24,10 +24,10 @@ describe("reading in stages", () => {
   it("shows the map before everything is read, and never half a view", async () => {
     const updates: { views: string[]; pending: string[]; advisor: boolean }[] = [];
     await read(3, (d, pending) => updates.push({ views: Object.keys(d.views), pending, advisor: d.advisor !== null }));
-    expect(updates[0]).toEqual({ views: ["service", "subscription"], pending: ["resources", "regions", "tags", "forecast", "Advisor", "idle checks"], advisor: false });
+    expect(updates[0]).toEqual({ views: ["service", "subscription"], pending: ["resources", "regions", "tags", "forecast", "budgets", "Advisor", "idle checks"], advisor: false });
     expect(updates[1].views).toEqual(["service", "subscription", "resource"]);
     expect(updates[2].views).toEqual(["service", "subscription", "region", "resource", "tag"]);
-    expect(updates[2].pending).toEqual(["Advisor", "idle checks"]);
+    expect(updates[2].pending).toEqual(["budgets", "Advisor", "idle checks"]);
   }, 20000);
 
   it("gives the same data however many subscriptions are read at once", async () => {
@@ -45,6 +45,7 @@ describe("reading costs", () => {
     expect(data.advisor_error).toBe("HTTP 403"); // only the status: Azure's message names the caller
     expect(data.advisor?.[0].annual_savings).toBe(2100); // duplicate tips: the biggest saving is kept
     expect(data.views.tag?.tag).toBe("env"); // the tag on the most resources, hidden-* ignored
+    expect(data.budgets?.map(b => [b.name, b.filtered])).toEqual([["team-a-monthly", false], ["rg-data-budget", true]]); // cost budgets only
     await expect(JSON.stringify(data, null, 1)).toMatchFileSnapshot("__snapshots__/fetch-data.json");
   }, 20000);
 
@@ -53,6 +54,9 @@ describe("reading costs", () => {
     expect(s.hints.map(h => h.kind)).toContain("spike");
     expect(s.hints.map(h => h.kind)).toContain("idle");
     expect(s.totals.credits_and_refunds).toBeLessThan(0);
+    const over = s.hints.filter(h => h.kind === "budget");
+    expect(over).toHaveLength(1); // the other budget is on track
+    expect(over[0]).toMatchObject({ budget: "team-a-monthly", amount: 30, reason: "forecast to reach 110% of its monthly budget by the end of the month" });
     await expect(JSON.stringify(s, null, 1)).toMatchFileSnapshot("__snapshots__/fetch-summary.json");
   }, 20000);
 });
@@ -61,7 +65,9 @@ describe("the demo", () => {
   it("has a story for every list", async () => {
     const d = { ...demo(30, TODAY), generated: "2026-09-28 10:00" }, s = summarize(d);
     const kinds = new Set(s.hints.map(h => h.kind));
-    for (const k of ["spike", "pit", "idle", "devtest"]) expect(kinds).toContain(k);
+    for (const k of ["spike", "pit", "idle", "devtest", "budget"]) expect(kinds).toContain(k);
+    expect(s.hints.filter(h => h.kind === "budget").map(h => h.reason)).toEqual([ // biggest overrun first: $650, then $150
+      "forecast to reach 108% of its monthly budget by the end of the month", "already 137% of its monthly budget"]);
     expect(s.totals.credits_and_refunds).toBeLessThan(0); // the refunded reservation
     expect(s.top_drops.some(x => x.meter === "E8s v5")).toBe(true); // the scaled-down ETL worker
     expect(s.advisor?.[0].covers.length).toBeGreaterThan(0); // the SQL reservation covers the vCore meter

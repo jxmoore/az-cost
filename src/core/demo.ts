@@ -1,6 +1,6 @@
 // Fake data, no Azure needed: a demo bill, four subscriptions and a few stories worth finding.
 import { accumulate, pack, sum } from "./pack";
-import type { AdvisorRec, CostData, Forecast, GraphFinding, ViewData, ViewKey } from "./types";
+import type { AdvisorRec, Budget, CostData, Forecast, GraphFinding, ViewData, ViewKey } from "./types";
 import { addDays, daysBetween, lastFullDay, localToday, monthEnd } from "./types";
 import { groupKey, VIEWS } from "../azure/costs";
 
@@ -72,6 +72,17 @@ function demoAdvisor(): AdvisorRec[] {
     rec("Right-size or shutdown underutilized virtual machines", D, `${VM}/vm-etl-worker`, 2150.0, "Standard_E4s_v5", null, "rg-etl"),
     rec("Consider Cosmos DB reserved instance to save over the pay-as-you-go costs", P, null, 1020.0, "100 RU/s", "P1Y"),
     rec("Right-size or shutdown underutilized virtual machines", S, `${VM}/vm-legacy-ftp`, 640.0, "Standard_B2s", null, "rg-legacy"),
+  ];
+}
+
+function demoBudgets(): Budget[] {
+  const budget = (sub: string, name: string, amount: number, current: number, forecast: number, filtered = false): Budget =>
+    ({ name, subscription: DEMO_SUBS[sub], subscription_id: sub, amount, time_grain: "Monthly", current, forecast, currency: "USD", filtered });
+  return [
+    budget(P, "prod-monthly", 8000, 7420, 8650), // on pace to run over
+    budget(S, "staging-monthly", 1500, 900, 1150),
+    budget(X, "sandbox-cap", 300, 410, 450), // the AI experiments already blew through it
+    budget(D, "lake-storage", 900, 560, 700, true),
   ];
 }
 
@@ -166,7 +177,7 @@ export function demo(days: number, today: string = localToday()): CostData {
   return {
     days: dates, split: days, views, currency: "USD",
     subscriptions: Object.entries(DEMO_SUBS).map(([id, name]) => ({ id, name, currency: "USD" })),
-    resource_fallback: [], advisor: demoAdvisor(), advisor_error: null,
+    resource_fallback: [], advisor: demoAdvisor(), advisor_error: null, budgets: demoBudgets(), budget_error: null,
     forecast: demoForecast(views, dates, today), forecast_note: null,
     graph: demoGraph(), graph_error: null, demo: true,
   };

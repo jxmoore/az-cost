@@ -1,6 +1,6 @@
 // Reading costs: the Cost Management, forecast, tag, Advisor and Resource Graph calls, folded into one run's data.
 import { fold, type RawEntry } from "../core/pack";
-import type { AdvisorRec, CostData, Dim, Forecast, GraphFinding, Metric, SubInfo, ViewData, ViewKey } from "../core/types";
+import type { AdvisorRec, Budget, CostData, Dim, Forecast, GraphFinding, Metric, SubInfo, ViewData, ViewKey } from "../core/types";
 import { periodDays, type Period } from "../core/period";
 import { localToday, monthEnd } from "../core/types";
 import { Azure, AzureError, Cancelled, TooManyPages, type Log } from "./client";
@@ -194,6 +194,32 @@ async function graphFindings(az: Azure, targets: Target[], log: Log): Promise<[G
   return [found.slice(0, MAX_GRAPH_ROWS), null];
 }
 
+const BUDGETS_API = "2023-05-01";
+
+/** A subscription's cost budgets, with Azure's own spend and forecast for each budget's current period (so they
+ * match the portal whatever period the run reads). Usage budgets (quantities, not money) are left out. */
+async function budgetsFor(az: Azure, target: Target): Promise<Budget[]> {
+  const out: Budget[] = [];
+  let url: string | undefined = `${target.scope}/providers/Microsoft.Consumption/budgets?api-version=${BUDGETS_API}`;
+  while (url) {
+    const page: any = await az.call("GET", url);
+    for (const b of page.value ?? []) {
+      const p = b.properties ?? {};
+      if (p.category && p.category !== "Cost") continue;
+      const f = p.filter ?? {};
+      out.push({
+        name: b.name, subscription: target.name, subscription_id: target.id, amount: Number(p.amount) || 0,
+        time_grain: p.timeGrain ?? "Monthly",
+        current: p.currentSpend?.amount ?? null, forecast: p.forecastSpend?.amount ?? null,
+        currency: p.currentSpend?.unit ?? p.forecastSpend?.unit ?? null,
+        filtered: !!(f.dimensions || f.tags || f.and || f.or || f.not), // it covers part of the subscription only
+      });
+    }
+    url = page.nextLink;
+  }
+  return out;
+}
+
 /** Azure Advisor's cost recommendations for one subscription, one per (kind, resource, SKU, region).
  * Advisor lists each reservation once per term and look-back period; keep the biggest saving. */
 async function advisorRecs(az: Azure, target: Target): Promise<AdvisorRec[]> {
@@ -260,7 +286,7 @@ export interface FetchOptions {
 }
 
 /** What a run is still reading, for the page to say while it shows what's already there. */
-export type Pending = "resources" | "regions" | "tags" | "forecast" | "Advisor" | "idle checks";
+export type Pending = "resources" | "regions" | "tags" | "forecast" | "budgets" | "Advisor" | "idle checks";
 export type OnUpdate = (data: CostData, pending: Pending[]) => void;
 
 // Cost Management throttles per subscription and per tenant: a few at once is faster, many at once only waits
@@ -299,9 +325,11 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const subs: (SubInfo | undefined)[] = new Array(n), fallback: boolean[] = new Array(n).fill(false);
   const forecasts: ({ f: ForecastResult | null; why: string } | undefined)[] = new Array(n);
   const recs: AdvisorRec[][] = targets.map(() => []);
+  const budgets: Budget[][] = targets.map(() => []);
+  let budgetError: string | null = null;
   const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
   const settled = new Set<string>(); // targets whose columns a query has already worked with
-  const done = { resources: false, regions: false, advisor: false, graph: false };
+  const done = { resources: false, regions: false, budgets: false, advisor: false, graph: false };
   let tag: string | null = null, tagDone = false, advisorError: string | null = null;
   let findings: GraphFinding[] | null = null, graphError: string | null = null;
 
@@ -402,6 +430,17 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
     }
   };
 
+  const budget = async (t: Target, i: number) => {
+    log(`  ${t.name}: budgets ...`);
+    try {
+      budgets[i] = await budgetsFor(az, t);
+    } catch (e) { // budgets need Cost Management Reader or Reader, like the costs; say so and go on without them
+      if (e instanceof Cancelled) throw e;
+      budgetError = e instanceof AzureError ? `HTTP ${e.status}` : (e as Error).name;
+      log(`  ${t.name}: skipped budgets (${(e as Error).message}).`);
+    }
+  };
+
   /** The data as far as it's read. */
   function assemble(): CostData {
     const known = subs.filter((s): s is SubInfo => !!s);
@@ -449,6 +488,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
       days: dates, split, views, currency, period: { mode: p.mode, label: p.label },
       subscriptions: known, resource_fallback: targets.filter((_, i) => fallback[i]).map(t => t.name),
       advisor: advisorList, advisor_error: advisorError,
+      budgets: withAdvisor.length && done.budgets ? budgets.flat() : null, budget_error: budgetError,
       mixed_currencies: mixed, usd_rate: usdRate,
       forecast, forecast_note: forecastNote,
       graph: findings, graph_error: graphError, demo: false,
@@ -458,6 +498,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const pendingNow = (): Pending[] => [
     ...(done.resources ? [] : ["resources" as const]),
     ...(done.regions ? [] : ["regions" as const, ...(tag || !tagDone ? ["tags" as const] : []), "forecast" as const]),
+    ...(withAdvisor.length && !done.budgets ? ["budgets" as const] : []),
     ...(o.advisor && withAdvisor.length && !done.advisor ? ["Advisor" as const] : []),
     ...(o.graph && withAdvisor.length && !done.graph ? ["idle checks" as const] : []),
   ];
@@ -475,12 +516,13 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   tagDone = true;
   update();
   await Promise.all([
+    withAdvisor.length ? pool(withAdvisor, concurrency, t => budget(t, targets.indexOf(t))) : undefined,
     o.advisor && withAdvisor.length ? pool(withAdvisor, concurrency, (t, _) => advisor(t, targets.indexOf(t))) : undefined,
     o.graph && withAdvisor.length // Resource Graph, like Advisor, reads subscriptions
       ? (log("  Resource Graph ..."), graphFindings(az, withAdvisor, log).then(([f, err]) => { findings = f; graphError = err; }))
       : undefined,
   ]);
-  done.advisor = done.graph = true;
+  done.budgets = done.advisor = done.graph = true;
 
   const data = assemble();
   if (data.mixed_currencies) log("  warning: these subscriptions bill in different currencies and Azure won't convert them; totals mix currencies");

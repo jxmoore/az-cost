@@ -1,7 +1,8 @@
 // A fake Azure Resource Manager for tests: Cost Management, forecast, tag names, Advisor and Resource Graph,
 // answering from a small made-up bill across two subscriptions. It exercises the awkward paths on purpose:
 // a throttled request, a subscription that rejects USD columns (and bills in euros), more result pages than the
-// resource view reads daily, a spike, a drop, a refund, sub-cent meters, duplicate Advisor tips and idle resources.
+// resource view reads daily, a spike, a drop, a refund, sub-cent meters, duplicate Advisor tips, idle resources and
+// a budget heading over.
 import { addDays } from "../core/types";
 
 export const TODAY = "2026-09-28";
@@ -110,6 +111,19 @@ function advisor(sub: string): Reply {
   ] } };
 }
 
+function budgets(sub: string): Reply {
+  if (sub === B) return { status: 200, body: { value: [] } };
+  const budget = (name: string, amount: number, current: number, forecast: number, extra: object = {}) => ({
+    name, properties: { category: "Cost", amount, timeGrain: "Monthly", timePeriod: { startDate: "2026-01-01T00:00:00Z" },
+      currentSpend: { amount: current, unit: "USD" }, forecastSpend: { amount: forecast, unit: "USD" }, ...extra },
+  });
+  return { status: 200, body: { value: [
+    budget("team-a-monthly", 300, 250, 330), // heading over by the end of the month
+    budget("rg-data-budget", 1000, 100, 200, { filter: { dimensions: { name: "ResourceGroupName", operator: "In", values: ["rg-data"] } } }),
+    { name: "vm-hours", properties: { category: "Usage", amount: 500, timeGrain: "Monthly" } }, // not money: left out
+  ] } };
+}
+
 const graph = (): Reply => ({ status: 200, body: { data: [
   { check: "unused-ip", id: rid(A, "rg-net", "Microsoft.Network/publicIPAddresses/pip-old").toLowerCase(), name: "pip-old", resourceGroup: "rg-net", subscriptionId: A },
   { check: "unattached-disk", id: rid(A, "rg-x", "Microsoft.Compute/disks/free").toLowerCase(), name: "free", resourceGroup: "rg-x", subscriptionId: A }, // costs nothing
@@ -139,6 +153,7 @@ export function fakeAzure({ delay = 0 } = {}) {
       const counts: [string, number][] = sub === A ? [["env", 5], ["owner", 2], ["hidden-title", 9]] : [["Env", 1]];
       r = { status: 200, body: { value: counts.map(([tagName, value]) => ({ tagName, count: { value } })) } };
     } else if (path.includes("/providers/Microsoft.Advisor/recommendations")) r = advisor(sub);
+    else if (path.includes("/providers/Microsoft.Consumption/budgets")) r = budgets(sub);
     else if (path === "/providers/Microsoft.ResourceGraph/resources") r = graph();
     else r = { status: 404, body: { error: { code: "NotFound", message: url } } };
     return new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers });

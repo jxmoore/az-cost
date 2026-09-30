@@ -1270,6 +1270,31 @@
   }
  ],
  "advisor_error": "HTTP 403",
+ "budgets": [
+  {
+   "name": "team-a-monthly",
+   "subscription": "team-a",
+   "subscription_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+   "amount": 300,
+   "time_grain": "Monthly",
+   "current": 250,
+   "forecast": 330,
+   "currency": "USD",
+   "filtered": false
+  },
+  {
+   "name": "rg-data-budget",
+   "subscription": "team-a",
+   "subscription_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+   "amount": 1000,
+   "time_grain": "Monthly",
+   "current": 100,
+   "forecast": 200,
+   "currency": "USD",
+   "filtered": true
+  }
+ ],
+ "budget_error": null,
  "mixed_currencies": [
   "EUR",
   "USD"

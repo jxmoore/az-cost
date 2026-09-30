@@ -34,6 +34,19 @@ export interface AdvisorRec {
 
 export interface GraphFinding { check: string; id: string; name: string; resourceGroup: string; subscriptionId: string }
 
+/** A cost budget on a subscription, with Azure's spend and forecast for the budget's current period. */
+export interface Budget {
+  name: string;
+  subscription: string; // its name
+  subscription_id: string;
+  amount: number;
+  time_grain: string; // Monthly, Quarterly, Annually, BillingMonth, ...
+  current: number | null;
+  forecast: number | null;
+  currency: string | null;
+  filtered: boolean; // it covers part of the subscription (a resource group, a tag, ...)
+}
+
 export interface Forecast { month: string; actual: number; forecast: number; total: number }
 
 export interface CostData {
@@ -46,6 +59,8 @@ export interface CostData {
   resource_fallback: string[];
   advisor: AdvisorRec[] | null;
   advisor_error: string | null;
+  budgets?: Budget[] | null; // null: not read (yet)
+  budget_error?: string | null;
   mixed_currencies?: string[] | null;
   usd_rate?: number | null;
   forecast: Forecast | null;

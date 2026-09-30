@@ -374,7 +374,8 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
         </div>
       </div>
       <SidePanel M={M} st={st} narrowed={narrowed} root={root} zoomNode={zoomNode} selNode={selNode} sideRef={sideRef}
-        creditNote={creditNote} onHint={clickHint} onDrop={clickDrop} onRec={clickRec} onToggle={toggle} />
+        creditNote={creditNote} onHint={clickHint} onDrop={clickDrop} onRec={clickRec} onToggle={toggle}
+        onBudget={id => reveal("subscription", n => n.kind === "group" && n.key === id)} />
       <footer>
         <span><kbd>click</kbd>select</span><span><kbd>click</kbd>again or <kbd>enter</kbd>open</span><span><kbd>tab</kbd>next</span><span><kbd>⌫</kbd>up</span>
         <span>{VIEW_KEYS.map((k, i) => (DATA.views[k] ? <kbd key={k}>{i + 1}</kbd> : null))}view</span><span><kbd>c</kbd>color</span><span><kbd>/</kbd>filter</span><span><kbd>e</kbd>export</span><span><kbd>esc</kbd>clear</span>
@@ -404,21 +405,26 @@ interface SideProps {
   onHint: (i: number) => void;
   onDrop: (i: number) => void;
   onRec: (i: number) => void;
+  onBudget: (subscriptionId: string) => void;
   onToggle: (list: "hints" | "recs") => void;
 }
 
-/** one row of a side-panel list: title and amount on a line, then a small kind tag and the reason */
-function Row({ color, title, full, value, tag, why, whyTitle, onClick }:
-  { color: string; title: string; full: string; value: string; tag: string | null; why: string; whyTitle?: string; onClick: () => void }) {
+/** one row of a side-panel list: title and amount on a line, then a small kind tag and the reason; a budget's row
+ * also has a bar: what's spent, and a tick where the forecast lands */
+function Row({ color, title, full, value, tag, why, whyTitle, onClick, meter }:
+  { color: string; title: string; full: string; value: string; tag: string | null; why: string; whyTitle?: string; onClick: () => void;
+    meter?: { used: number; forecast: number | null } }) {
   return (
     <div className="hint" role="button" tabIndex={0} style={{ "--c": color } as CSSProperties} onClick={onClick}>
       <div className="ht"><span className="hn" title={full}>{title}</span><span className="hv">{value}</span></div>
+      {meter && <div className="meter"><i style={{ width: `${Math.min(100, meter.used * 100)}%` }} />
+        {meter.forecast !== null && <b style={{ left: `${Math.min(100, meter.forecast * 100)}%` }} />}</div>}
       <div className="hs" title={whyTitle}>{tag && <span className="tag">{tag}</span>}{why}</div>
     </div>
   );
 }
 
-function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNote, onHint, onDrop, onRec, onToggle }: SideProps) {
+function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNote, onHint, onDrop, onRec, onBudget, onToggle }: SideProps) {
   const { DATA, DAYS } = M;
   const n = selNode || zoomNode || root;
   const [A, B] = DATA.views[st.view]!.dims;
@@ -439,6 +445,9 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
   const shownHints = st.expanded.hints ? hints : hints.slice(0, SHOWN_HINTS);
   const drops = M.biggestDrops();
   const recs = M.TIPS;
+  // a subscription's budget (the one covering all of it first), or the bill's when the run read one subscription
+  const budget = M.budgetsOf(n).sort((a, b) => Number(a.filtered) - Number(b.filtered))[0];
+  const budgets = M.BUDGETS, overCount = (budgets ?? []).filter(b => M.budgetState(b).status !== "on track").length;
 
   return (
     <aside id="side" ref={sideRef}>
@@ -462,6 +471,15 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
             <div><span>kind</span>{kind}</div>
             <div><span>category</span>{n.kind === "root" ? "–" : (CATS.find(c => c[0] === M.category(n, st.view)) || [, "–"])[1]}</div>
           </>}
+          {budget && (() => { // Azure's figures for the budget's own period, not the run's
+            const b = budget, bs = M.budgetState(b), money = (v: number) => M.money(v, sym(b.currency || DATA.currency));
+            return <>
+              <div title={b.name + (b.filtered ? " (covers part of the subscription)" : "")}><span>{M.grainWord(b)} budget</span>{money(b.amount)}</div>
+              <div title={`${money(b.current ?? 0)} spent${b.forecast !== null ? `, ${money(b.forecast)} forecast` : ""}`}><span>used · forecast</span>
+                <b style={{ color: bs.used > 1 ? "var(--up)" : undefined }}>{pct(bs.used)}</b>
+                {bs.forecast !== null && <> · <b style={{ color: bs.forecast > 1 ? "var(--up)" : undefined }}>{pct(bs.forecast)}</b></>}</div>
+            </>;
+          })()}
         </div>
         <Spark M={M} n={n} view={st.view} />
       </section>
@@ -483,6 +501,20 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
           return <Row key={i} color="var(--down)" title={`${shortSvc(h.n.parent!.key)} · ${h.n.name}`} full={h.n.full} value={M.money(h.n.cur)}
             tag={gone ? "gone" : "fell"} why={why} onClick={() => onDrop(i)} />;
         })}
+      </section>}
+
+      {budgets && <section>
+        <div className="h">Budgets {overCount > 0 && <b style={{ color: "var(--up)" }}>{overCount} over or at risk</b>}</div>
+        {budgets.map((b, i) => {
+          const bs = M.budgetState(b), money = (v: number) => M.money(v, sym(b.currency || DATA.currency));
+          const why = `${b.subscription} · ${M.grainWord(b)}${b.forecast !== null ? ` · forecast ${money(b.forecast)} (${pct(bs.forecast!)})` : ""}` +
+            (b.filtered ? " · filtered" : "");
+          return <Row key={i} color={bs.color} title={b.name} full={`${b.name} · ${b.subscription}`} value={`${money(b.current ?? 0)} / ${money(b.amount)}`}
+            tag={bs.status} why={why} onClick={() => onBudget(b.subscription_id)} meter={bs} />;
+        })}
+        {!budgets.length && <div className="note">{DATA.budget_error
+          ? (/^HTTP 40[13]\b/.test(DATA.budget_error) ? "Budgets weren't readable with this login." : `Budgets couldn't be read (${DATA.budget_error}).`)
+          : "No cost budgets on these subscriptions."}</div>}
       </section>}
 
       {recs && (!recs.length

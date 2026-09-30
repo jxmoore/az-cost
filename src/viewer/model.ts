@@ -1,6 +1,6 @@
 // Everything the viewer derives from one run's data: trees, names, colors, formatting and the side panel's lists.
 import type { Hint, LinkedTip, Summary } from "../core/summarize";
-import type { AdvisorRec, CostData, Dim, ViewKey } from "../core/types";
+import type { AdvisorRec, Budget, CostData, Dim, ViewKey } from "../core/types";
 
 export const VIEW_KEYS: ViewKey[] = ["service", "subscription", "region", "resource", "tag"];
 export const VIEW_NAMES: Record<string, string> = { service: "Service", subscription: "Subscription", region: "Region", resource: "Resource" };
@@ -73,9 +73,9 @@ const svcCat = (s: string) => match(SVC_RULES, s) || "other";
 
 export const TERM: Record<string, string> = { P1Y: "1-yr term", P3Y: "3-yr term", P5Y: "5-yr term" };
 export const SHOWN_RECS = 5, SHOWN_HINTS = 6;
-export const HINT_TAG: Record<string, string> = { grower: "grew", spike: "spike", pit: "fix", devtest: "dev/test", steady: "reserve", idle: "idle" };
+export const HINT_TAG: Record<string, string> = { grower: "grew", spike: "spike", pit: "fix", devtest: "dev/test", steady: "reserve", idle: "idle", budget: "budget" };
 const HINT_COLOR: Record<string, string> = { grower: "var(--up)", spike: "var(--up)", pit: "var(--accent)", devtest: "var(--accent)",
-  steady: "var(--advisor)", idle: "var(--accent)" };
+  steady: "var(--advisor)", idle: "var(--accent)", budget: "var(--up)" };
 
 export interface PlacedHint {
   h: Hint;
@@ -276,6 +276,11 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
         const top = h.resources[0], n = groups.get(top.group)?.children!.find(c => c.key === top.id);
         return n ? { h, n, c, why, title: h.label!, value: h.amount, view: "resource", find: m => m.kind === "leaf" && m.key === top.id } : null;
       }
+      if (h.kind === "budget") { // a subscription over (or heading over) its budget: its box in the subscription view
+        const n = tree("subscription", "", false).children!.find(g => g.key === h.subscription_id);
+        return n ? { h, n, c, why, title: `${h.budget} · ${n.name}`, value: h.amount, view: "subscription",
+          find: m => m.kind === "group" && m.key === h.subscription_id } : null;
+      }
       if (h.kind === "steady") {
         const n = t.children!.find(g => g.key === h.service);
         return n ? { h, n, c, why, title: n.name, value: h.current, view: "service", find: m => m.kind === "group" && m.key === h.service } : null;
@@ -305,8 +310,27 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
   const isTodo = (n: TNode, view: ViewKey) => n.kind === "leaf" && !n.more
     && (marks(view).has(n.parent!.key + "\u0000" + n.key) || marks(view).has(n.parent!.key + "\u0000*"));
 
+  // ---------- budgets: Azure's spend and forecast for each budget's own period
+  const BUDGETS = DATA.budgets ?? null;
+  /** how far a budget is used and forecast to be, and what that means */
+  function budgetState(b: Budget) {
+    const used = b.amount > 0 ? (b.current ?? 0) / b.amount : 0, forecast = b.amount > 0 && b.forecast !== null ? b.forecast / b.amount : null;
+    const status = used > 1 ? "over" : (forecast ?? used) > 1 ? "at risk" : "on track";
+    return { used, forecast, status, color: status === "on track" ? "var(--down)" : "var(--up)" };
+  }
+  /** the budgets a box is about: a subscription's, or the whole bill's when the run read one subscription */
+  function budgetsOf(n: TNode): Budget[] {
+    if (!BUDGETS) return [];
+    if (n.kind === "root") return DATA.subscriptions.length === 1 ? BUDGETS : [];
+    if (n.kind === "group" && n.dim === "SubscriptionId") return BUDGETS.filter(b => b.subscription_id === n.key);
+    return [];
+  }
+  const GRAIN_WORD: Record<string, string> = { Monthly: "monthly", Quarterly: "quarterly", Annually: "annual", BillingMonth: "billing month",
+    BillingQuarter: "billing quarter", BillingAnnual: "billing year" };
+  const grainWord = (b: Budget) => GRAIN_WORD[b.time_grain] ?? b.time_grain;
+
   return {
-    DATA, EXPORT, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
+    DATA, EXPORT, BUDGETS, budgetState, budgetsOf, grainWord, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
     money, bigMoney, period, category, color, tree, credits, totalsOnly, portalHref,
     tipDetail, tipLine, biggestDrops, worthALook, marks, isTodo,
   };
