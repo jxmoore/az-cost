@@ -2,22 +2,38 @@
 // __snapshots__/: after an intended change to the fetcher or the rules, review the diff and run `npm test -- -u`.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Azure } from "../src/azure/client";
-import { fetchCosts, subscriptionTarget } from "../src/azure/costs";
+import { fetchCosts, subscriptionTarget, type OnUpdate } from "../src/azure/costs";
 import { demo } from "../src/core/demo";
 import { pit, summarize } from "../src/core/summarize";
 import type { CostData } from "../src/core/types";
-import { A, B, DAYS, fakeAzure, TODAY } from "./fakeAzure";
+import { A, B, DAYS, fakeAzure, TODAY } from "../src/dev/fakeAzure";
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function read(): Promise<{ data: CostData; seen: string[] }> {
+async function read(concurrency?: number, onUpdate?: OnUpdate): Promise<{ data: CostData; seen: string[] }> {
   const fake = fakeAzure();
   vi.stubGlobal("fetch", fake.fetch);
   const targets = [subscriptionTarget({ id: A, name: "team-a", tenant: "t1" }), subscriptionTarget({ id: B, name: "team-b", tenant: "t1" })];
   const data = await fetchCosts(new Azure(async () => "token"), targets,
-    { days: DAYS, metric: "ActualCost", advisor: true, graph: true, tag: null, today: TODAY }, () => {});
+    { days: DAYS, metric: "ActualCost", advisor: true, graph: true, tag: null, today: TODAY, concurrency }, () => {}, onUpdate);
   return { data: { ...data, generated: "2026-09-28 10:00" }, seen: fake.seen };
 }
+
+describe("reading in stages", () => {
+  it("shows the map before everything is read, and never half a view", async () => {
+    const updates: { views: string[]; pending: string[]; advisor: boolean }[] = [];
+    await read(3, (d, pending) => updates.push({ views: Object.keys(d.views), pending, advisor: d.advisor !== null }));
+    expect(updates[0]).toEqual({ views: ["service", "subscription"], pending: ["resources", "regions", "tags", "forecast", "Advisor", "idle checks"], advisor: false });
+    expect(updates[1].views).toEqual(["service", "subscription", "resource"]);
+    expect(updates[2].views).toEqual(["service", "subscription", "region", "resource", "tag"]);
+    expect(updates[2].pending).toEqual(["Advisor", "idle checks"]);
+  }, 20000);
+
+  it("gives the same data however many subscriptions are read at once", async () => {
+    const one = (await read(1)).data, many = (await read(8)).data;
+    expect(JSON.stringify(many)).toBe(JSON.stringify(one));
+  }, 30000);
+});
 
 describe("reading costs", () => {
   it("copes with throttling, rejected columns, paging limits and missing access", async () => {

@@ -37,9 +37,11 @@ interface Props {
   data: CostData;
   who?: string | null;
   onNewRun: () => void;
+  loading?: string[]; // what the run is still reading: the map shows what's there and fills in
+  loadError?: string | null; // the run stopped early: what's shown is all there is
 }
 
-export function Viewer({ data, who, onNewRun }: Props) {
+export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: Props) {
   const M = useMemo(() => createModel(data, summarize(data)), [data]);
   const { DATA } = M;
 
@@ -347,6 +349,9 @@ export function Viewer({ data, who, onNewRun }: Props) {
       <div className="sub">
         <span><b>{M.money(root.cur)}</b> · {M.period()}</span>
         <span>{root.children!.length} {M.DIM[A].many} · {leaves} {M.DIM[B].many}</span>
+        {loading.length > 0 && <span className="loading" title="the map shows what's read so far; views and lists appear as they arrive">
+          <i />reading {loading.join(", ")}…</span>}
+        {loadError && <span className="warn" title={loadError}>stopped early: {loadError.split("\n")[0]}</span>}
         {DATA.mixed_currencies && <span className="warn" title="Azure couldn't convert these subscriptions to one currency, so every amount adds different currencies">totals mix {DATA.mixed_currencies.join(" and ")}: Azure didn't convert them</span>}
         {M.totalsOnly(st.view) && <span title="too many resources for a daily series: each resource has one total per period">period totals for {DATA.resource_fallback.join(", ")}</span>}
         {st.view === "tag" && !narrowed && <span title={`spend on resources without the ${M.TAG} tag`}>untagged {M.money(M.UNTAGGED)} ({pct(M.grand > 0 ? M.UNTAGGED / M.grand : 0)} of bill)</span>}

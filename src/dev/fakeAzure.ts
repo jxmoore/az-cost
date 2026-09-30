@@ -2,7 +2,7 @@
 // answering from a small made-up bill across two subscriptions. It exercises the awkward paths on purpose:
 // a throttled request, a subscription that rejects USD columns (and bills in euros), more result pages than the
 // resource view reads daily, a spike, a drop, a refund, sub-cent meters, duplicate Advisor tips and idle resources.
-import { addDays } from "../src/core/types";
+import { addDays } from "../core/types";
 
 export const TODAY = "2026-09-28";
 export const DAYS = 7;
@@ -115,16 +115,21 @@ const graph = (): Reply => ({ status: 200, body: { data: [
   { check: "unattached-disk", id: rid(A, "rg-x", "Microsoft.Compute/disks/free").toLowerCase(), name: "free", resourceGroup: "rg-x", subscriptionId: A }, // costs nothing
 ] } });
 
-/** A fetch() that answers like the fake Azure, and counts the requests it saw. */
-export function fakeAzure() {
+/** A fetch() that answers like the fake Azure, and counts the requests it saw. `delay` (ms) slows each answer,
+ * so a page using it shows its loading states. */
+export function fakeAzure({ delay = 0 } = {}) {
   let throttled = false;
   const seen: string[] = [];
   const fetch = async (url: string, init: RequestInit) => {
     const u = new URL(url), path = u.pathname, body = init.body ? JSON.parse(init.body as string) : null;
     const sub = path.startsWith("/subscriptions/") ? path.split("/")[2] : "";
     seen.push(`${init.method} ${url}`);
+    if (delay) await new Promise(r => setTimeout(r, delay));
     let r: Reply;
-    if (path.includes("/providers/Microsoft.CostManagement/query") && !throttled) {
+    if (path === "/subscriptions") {
+      r = { status: 200, body: { value: [[A, "team-a"], [B, "team-b"]].map(([subscriptionId, displayName]) =>
+        ({ subscriptionId, displayName, state: "Enabled", tenantId: "t1" })) } };
+    } else if (path.includes("/providers/Microsoft.CostManagement/query") && !throttled) {
       throttled = true; // the first query is throttled once
       r = { status: 429, body: { error: { code: "429", message: "Too many requests" } },
         headers: { "x-ms-ratelimit-microsoft.costmanagement-entity-retry-after": "1" } };

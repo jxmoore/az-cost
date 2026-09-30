@@ -3,8 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadConfig, type AppConfig } from "../auth/config";
 import { inspectToken, signIn, signOut, startAuth, tokenSource, type Auth } from "../auth/msal";
 import { Azure, explain, type TokenSource } from "../azure/client";
-import { fetchCosts, listSubscriptions, scopeTarget, subscriptionTarget, type Subscription } from "../azure/costs";
+import {
+  fetchCosts, listSubscriptions, scopeTarget, subscriptionTarget, type FetchOptions, type Pending, type Subscription, type Target,
+} from "../azure/costs";
 import { demo } from "../core/demo";
+import { FAKE } from "../dev/fakeMode";
 import { nowStamp, type CostData, type Metric } from "../core/types";
 import { Viewer } from "../viewer/Viewer";
 import { forgetRun, loadRun, saveRun, type SavedRun } from "./cache";
@@ -12,6 +15,8 @@ import "./app.css";
 
 type Phase = "boot" | "start" | "setup" | "running" | "view";
 interface Session { token: TokenSource; who: string; auth: Auth | null }
+/** A run in progress: its log until the map shows, then what it's still reading. */
+interface Run { abort: AbortController; log: string[]; pending: Pending[]; error: string | null }
 
 const TOKEN_CMD = "az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv";
 
@@ -22,6 +27,7 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [saved, setSaved] = useState<SavedRun | null>(null);
   const [data, setData] = useState<{ data: CostData; who: string | null } | null>(null);
+  const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const booted = useRef(false);
@@ -30,6 +36,11 @@ export function App() {
     booted.current = true;
     (async () => {
       setSaved(await loadRun());
+      if (FAKE) { // development: a fake Azure, already signed in
+        setSession({ token: async () => "fake", who: "fake@dev", auth: null });
+        setPhase("setup");
+        return;
+      }
       const c = await loadConfig();
       setCfg(c);
       if (c) {
@@ -54,14 +65,50 @@ export function App() {
     setPhase("view");
   };
   const newRun = () => {
+    run?.abort.abort(); // a run still reading stops here
+    setRun(null);
     history.replaceState(null, "", location.pathname); // the viewer's #view and its history steps end here
     setPhase(session ? "setup" : "start");
   };
-  const runDemo = () => showData({ ...demo(30), generated: nowStamp(), metric: "ActualCost" }, null);
-  const openSaved = () => saved && showData(saved.data, saved.who);
+  const runDemo = () => { setRun(null); showData({ ...demo(30), generated: nowStamp(), metric: "ActualCost" }, null); };
+  const openSaved = () => { setRun(null); saved && showData(saved.data, saved.who); };
   const forget = async () => { await forgetRun(); setSaved(null); };
 
-  if (phase === "view" && data) return <Viewer data={data.data} who={data.who} onNewRun={newRun} />;
+  /** Read costs. The map opens with the first stage (services) and fills in as the rest arrives. */
+  async function startRun(targets: Target[], o: FetchOptions, intro: string) {
+    if (!session) return;
+    const abort = new AbortController(), who = session.who;
+    const update = (patch: Partial<Run>) => setRun(r => (r && r.abort === abort ? { ...r, ...patch } : r));
+    const say = (m: string) => setRun(r => (r && r.abort === abort ? { ...r, log: [...r.log, m] } : r));
+    setError(null);
+    setRun({ abort, log: [intro], pending: [], error: null });
+    setPhase("running");
+    let shown = false;
+    const stamp = (d: CostData): CostData => ({ ...d, generated: nowStamp(), metric: o.metric });
+    try {
+      const final = await fetchCosts(new Azure(session.token, say, abort.signal), targets, o, say, (d, pending) => {
+        if (abort.signal.aborted) return;
+        update({ pending });
+        showData(stamp(d), who);
+        shown = true;
+      });
+      if (abort.signal.aborted) return;
+      const d = stamp(final);
+      showData(d, who);
+      update({ pending: [] });
+      const entry = { data: d, who, saved: nowStamp() };
+      await saveRun(entry);
+      setSaved(entry);
+    } catch (e) {
+      if (abort.signal.aborted) return;
+      if (shown) update({ pending: [], error: explain(e) }); // keep what was read, and say it stopped early
+      else { setError(explain(e)); setRun(null); setPhase("setup"); }
+    }
+  }
+
+  if (phase === "view" && data) {
+    return <Viewer data={data.data} who={data.who} onNewRun={newRun} loading={run?.pending ?? []} loadError={run?.error ?? null} />;
+  }
 
   return (
     <div className="shell">
@@ -79,15 +126,9 @@ export function App() {
         {phase === "boot" && <div className="muted">Starting…</div>}
         {phase === "start" && <Start cfg={cfg} onSignIn={auth ? () => signIn(auth) : null} saved={saved} onDemo={runDemo} onOpenSaved={openSaved} onForget={forget}
           onToken={(token, who) => { setSession({ token: async () => token, who, auth: null }); setError(null); setPhase("setup"); }} />}
-        {(phase === "setup" || phase === "running") && session &&
-          <Setup session={session} saved={saved} running={phase === "running"} setRunning={r => setPhase(r ? "running" : "setup")}
-            onDemo={runDemo} onOpenSaved={openSaved}
-            onDone={async d => {
-              const run = { data: d, who: session.who, saved: nowStamp() };
-              await saveRun(run);
-              setSaved(run);
-              showData(d, session.who);
-            }} />}
+        {phase === "setup" && session &&
+          <Setup session={session} saved={saved} onDemo={runDemo} onOpenSaved={openSaved} onRead={startRun} />}
+        {phase === "running" && run && <Running run={run} onCancel={() => { run.abort.abort(); setRun(null); setPhase("setup"); }} />}
       </div>
     </div>
   );
@@ -135,20 +176,32 @@ function Start({ cfg, onSignIn, saved, onDemo, onOpenSaved, onForget, onToken }:
   );
 }
 
-// ---------------------------------------------------------------- pick what to read, then read it
+// ---------------------------------------------------------------- a run, until the map can show
 
-function Setup({ session, saved, running, setRunning, onDemo, onOpenSaved, onDone }: {
-  session: Session; saved: SavedRun | null; running: boolean; setRunning: (r: boolean) => void;
-  onDemo: () => void; onOpenSaved: () => void; onDone: (d: CostData) => void;
+function Running({ run, onCancel }: { run: Run; onCancel: () => void }) {
+  const logEnd = useRef<HTMLDivElement>(null);
+  useEffect(() => { logEnd.current?.scrollIntoView({ block: "end" }); }, [run.log]); // braces: scrolling may return a promise
+  return (
+    <>
+      <div className="log">{run.log.map((l, i) => <div key={i}>{l}</div>)}<div ref={logEnd} /></div>
+      <p className="muted small">The map opens as soon as the services are read, and fills in while the rest arrives. Cost Management
+        limits how often it can be called, per subscription and per tenant, and azcost waits when Azure asks it to.</p>
+      <div className="actions"><button onClick={onCancel}>Cancel</button></div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- pick what to read
+
+function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
+  session: Session; saved: SavedRun | null; onDemo: () => void; onOpenSaved: () => void;
+  onRead: (targets: Target[], o: FetchOptions, intro: string) => void;
 }) {
   const [subs, setSubs] = useState<Subscription[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [find, setFind] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [log, setLog] = useState<string[]>([]);
   const [opts, setOpts] = useState({ days: 30, metric: "ActualCost" as Metric, advisor: true, graph: true, tag: "", scope: "" });
-  const abort = useRef<AbortController | null>(null);
-  const logEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     listSubscriptions(new Azure(session.token)).then(list => {
@@ -157,41 +210,16 @@ function Setup({ session, saved, running, setRunning, onDemo, onOpenSaved, onDon
       setPicked(new Set(enabled.length <= 10 ? enabled.map(s => s.id) : [])); // many subscriptions: many requests, so choose
     }).catch(e => setErr(explain(e)));
   }, [session]);
-  useEffect(() => logEnd.current?.scrollIntoView({ block: "end" }), [log]);
 
   const shown = useMemo(() => (subs ?? []).filter(s => !find || `${s.name} ${s.id}`.toLowerCase().includes(find.toLowerCase())), [subs, find]);
   const togglePick = (id: string) => setPicked(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const scope = opts.scope.trim();
   const ready = (scope || picked.size > 0) && opts.days >= 1 && opts.days <= 180;
 
-  async function read() {
-    setErr(null);
-    setLog([]);
-    setRunning(true);
-    abort.current = new AbortController();
-    const say = (m: string) => setLog(l => [...l, m]);
-    const az = new Azure(session.token, say, abort.current.signal);
-    const targets = scope ? [scopeTarget(scope)]
-      : (subs ?? []).filter(s => picked.has(s.id)).map(subscriptionTarget);
-    say(`reading ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}, last ${opts.days} days (+${opts.days} before, for comparison)`);
-    try {
-      const d = await fetchCosts(az, targets, { days: opts.days, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag: opts.tag.trim() || null }, say);
-      onDone({ ...d, generated: nowStamp(), metric: opts.metric });
-    } catch (e) {
-      setErr(explain(e));
-      setRunning(false);
-    }
-  }
-
-  if (running) {
-    return (
-      <>
-        <div className="log">{log.map((l, i) => <div key={i}>{l}</div>)}<div ref={logEnd} /></div>
-        <p className="muted small">Cost Management limits how often it can be called, per subscription and per tenant. A run makes about
-          10–14 requests per subscription and may wait 30–60 seconds when Azure asks it to.</p>
-        <div className="actions"><button onClick={() => abort.current?.abort()}>Cancel</button></div>
-      </>
-    );
+  function read() {
+    const targets = scope ? [scopeTarget(scope)] : (subs ?? []).filter(s => picked.has(s.id)).map(subscriptionTarget);
+    onRead(targets, { days: opts.days, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag: opts.tag.trim() || null },
+      `reading ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}, last ${opts.days} days (+${opts.days} before, for comparison)`);
   }
 
   return (

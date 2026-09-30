@@ -40,6 +40,10 @@ label.chk input { accent-color: var(--accent); margin: 0; }
 
 .sub { display: flex; align-items: center; gap: 16px; padding: 8px 14px 6px; color: var(--muted); min-width: 0; overflow: hidden; white-space: nowrap; }
 .sub b { color: var(--text); font-weight: 600; }
+.loading { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+.loading i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .loading i { animation: none; } }
 .legend { display: flex; gap: 12px; margin-left: auto; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend i { width: 9px; height: 9px; border-radius: 2px; }

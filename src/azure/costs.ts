@@ -255,24 +255,56 @@ export interface FetchOptions {
   graph: boolean;
   tag: string | null;
   today?: string;
+  concurrency?: number; // subscriptions read at once
 }
 
-export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, log: Log): Promise<CostData> {
+/** What a run is still reading, for the page to say while it shows what's already there. */
+export type Pending = "resources" | "regions" | "tags" | "forecast" | "Advisor" | "idle checks";
+export type OnUpdate = (data: CostData, pending: Pending[]) => void;
+
+// Cost Management throttles per subscription and per tenant: a few at once is faster, many at once only waits
+const CONCURRENCY = 3;
+
+/** Run `fn` over `items`, at most `n` at a time. The first failure stops new work and is thrown. */
+async function pool<T>(items: T[], n: number, fn: (item: T, i: number) => Promise<void>): Promise<void> {
+  let next = 0, failed = false;
+  const worker = async () => {
+    while (!failed && next < items.length) {
+      const i = next++;
+      try { await fn(items[i], i); } catch (e) { failed = true; throw e; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
+
+type ForecastResult = NonNullable<Awaited<ReturnType<typeof monthForecast>>>;
+
+/** Read a run's costs. Subscriptions are read a few at a time and in stages (services first, so the map can draw,
+ * then resources, then regions, tags and the forecast, then Advisor and the idle checks). `onUpdate` gets the data
+ * after each stage; a view is in it once every subscription's part of it is, so no view shows half a bill.
+ * Each subscription's results are kept apart and joined in order, so the same bill always gives the same data. */
+export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, log: Log, onUpdate?: OnUpdate): Promise<CostData> {
   const today = o.today ?? localToday();
   const end = lastFullDay(today), days = o.days;
   const start = addDays(end, -(2 * days - 1)); // current window + previous window, for the "vs prev" deltas
   const dates = Array.from({ length: 2 * days }, (_, i) => addDays(start, i));
   const index = new Map(dates.map((d, i) => [d.replaceAll("-", ""), i]));
-  const raw: Record<ViewKey, RawEntry[]> = { service: [], subscription: [], region: [], resource: [], tag: [] };
-  const names: Record<keyof typeof VIEWS, Record<string, string>> = { service: {}, subscription: {}, region: {}, resource: {} };
-  const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
-  const settled = new Set<string>(); // targets whose columns a query has already worked with
-  const subs: SubInfo[] = [], fallback: string[] = [];
-  const forecasts: NonNullable<Awaited<ReturnType<typeof monthForecast>>>[] = [], noForecast: string[] = [];
   const twins = new Map<string, number>();
   for (const t of targets) twins.set(t.name, (twins.get(t.name) ?? 0) + 1);
   targets = targets.map(t => (twins.get(t.name)! > 1 ? { ...t, name: `${t.name} (${t.id.slice(0, 8)})` } : t)); // "Pay-As-You-Go" twice
-  let tag = await chooseTag(az, targets, o.tag, log);
+  const n = targets.length, concurrency = o.concurrency ?? CONCURRENCY;
+
+  // per subscription, in target order
+  const raw = targets.map(() => ({ service: [], subscription: [], region: [], resource: [], tag: [] } as Record<ViewKey, RawEntry[]>));
+  const resourceNames = targets.map(() => ({} as Record<string, string>));
+  const subs: (SubInfo | undefined)[] = new Array(n), fallback: boolean[] = new Array(n).fill(false);
+  const forecasts: ({ f: ForecastResult | null; why: string } | undefined)[] = new Array(n);
+  const recs: AdvisorRec[][] = targets.map(() => []);
+  const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
+  const settled = new Set<string>(); // targets whose columns a query has already worked with
+  const done = { resources: false, regions: false, advisor: false, graph: false };
+  let tag: string | null = null, tagDone = false, advisorError: string | null = null;
+  let findings: GraphFinding[] | null = null, graphError: string | null = null;
 
   const run = async (t: Target, groupings: Grouping[], opts: { start?: string; end?: string; maxPages?: number; granularity?: null } = {}) => {
     if (!columns.has(t.id)) columns.set(t.id, AGGREGATIONS.map(a => [...a]));
@@ -292,23 +324,26 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   };
 
   /** `day` is set for period totals, which have no UsageDate: they land on their period's first day. */
-  const add = (view: ViewKey, key: [string, string], r: QueryRow, day?: number) => {
-    const i = day ?? index.get(usageDay(r.UsageDate));
-    if (i === undefined) return;
+  const add = (i: number, view: ViewKey, key: [string, string], r: QueryRow, day?: number) => {
+    const d = day ?? index.get(usageDay(r.UsageDate));
+    if (d === undefined) return;
     const cost = "Cost" in r ? r.Cost : r.PreTaxCost, costUsd = "CostUSD" in r ? r.CostUSD : r.PreTaxCostUSD;
-    raw[view].push([key, i, cost || 0, costUsd]);
+    raw[i][view].push([key, d, cost || 0, costUsd]);
   };
 
-  for (const t of targets) {
+  // ---- the stages
+  const services = async (t: Target, i: number) => {
     log(`  ${t.name}: services ...`);
     const currencies = new Map<string, number>();
     for (const r of await run(t, VIEWS.service)) {
       currencies.set(r.Currency, (currencies.get(r.Currency) ?? 0) + 1);
-      add("service", [serviceOf(r), r.Meter || "(no meter)"], r);
-      add("subscription", [t.id, serviceOf(r)], r);
+      add(i, "service", [serviceOf(r), r.Meter || "(no meter)"], r);
+      add(i, "subscription", [t.id, serviceOf(r)], r);
     }
-    names.subscription[t.id] = t.name;
-
+    const top = [...currencies].sort((a, b) => b[1] - a[1]).find(([c]) => c);
+    subs[i] = { id: t.id, name: t.name, currency: top ? top[0] : null, tenant: t.tenant }; // portal links open this tenant
+  };
+  const resources = async (t: Target, i: number) => {
     log(`  ${t.name}: resources ...`);
     let rows: [QueryRow, number | undefined][];
     try {
@@ -320,106 +355,137 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
       const prev = await run(t, VIEWS.resource, { start: dates[0], end: dates[days - 1], granularity: null });
       const cur = await run(t, VIEWS.resource, { start: dates[days], end: dates[dates.length - 1], granularity: null });
       rows = [...prev.map(r => [r, 0] as [QueryRow, number]), ...cur.map(r => [r, days] as [QueryRow, number])];
-      fallback.push(t.name);
+      fallback[i] = true;
     }
     for (const [r, day] of rows) {
       const rg: string = r.ResourceGroupName || "", rid: string = (r.ResourceId || "").toLowerCase();
       const key = groupKey(t.scope, rg, rid);
       const label = rg || "(no resource group)";
-      names.resource[key] = targets.length > 1 ? `${label} · ${t.name}` : label;
-      add("resource", [key, rid || "(no resource)"], r, day);
+      resourceNames[i][key] = n > 1 ? `${label} · ${t.name}` : label;
+      add(i, "resource", [key, rid || "(no resource)"], r, day);
     }
-
+  };
+  let tagFailed = false;
+  const details = async (t: Target, i: number) => {
     log(`  ${t.name}: regions ...`);
-    for (const r of await run(t, VIEWS.region)) add("region", [(r.ResourceLocation || "").toLowerCase(), serviceOf(r)], r);
-    if (tag) {
+    for (const r of await run(t, VIEWS.region)) add(i, "region", [(r.ResourceLocation || "").toLowerCase(), serviceOf(r)], r);
+    if (tag && !tagFailed) {
       log(`  ${t.name}: tag ${tag} ...`);
       try {
         for (const r of await run(t, [{ type: "TagKey", name: tag }, "ServiceName"])) {
-          add("tag", [r.TagValue || "", serviceOf(r)], r); // no value: spend on untagged resources
+          add(i, "tag", [r.TagValue || "", serviceOf(r)], r); // no value: spend on untagged resources
         }
       } catch (e) {
         if (!(e instanceof AzureError)) throw e;
         log(`  ${t.name}: skipped the tag view (${e.message})`);
-        tag = null; // without this target's part it wouldn't add up to the bill
+        tagFailed = true; // without this target's part it wouldn't add up to the bill
       }
     }
     log(`  ${t.name}: forecast ...`);
-    let f = null, why = "Azure has none";
+    let f: ForecastResult | null = null, why = "Azure has none";
     try {
       f = await monthForecast(az, t, o.metric, today, columns.get(t.id)![0][0]);
     } catch (e) {
       if (!(e instanceof AzureError)) throw e;
       why = `HTTP ${e.status}`;
     }
-    if (f) forecasts.push(f);
-    else noForecast.push(`${t.name} (${why})`);
-    const top = [...currencies].sort((a, b) => b[1] - a[1]).find(([c]) => c);
-    subs.push({ id: t.id, name: t.name, currency: top ? top[0] : null, tenant: t.tenant }); // portal links open this tenant
-  }
-
-  let recs: AdvisorRec[] | null = null, advisorError: string | null = null;
+    forecasts[i] = { f, why };
+  };
   const withAdvisor = targets.filter(t => t.scope.toLowerCase().startsWith("/subscriptions/")); // Advisor is per subscription
-  if (o.advisor && withAdvisor.length) {
-    recs = [];
-    for (const t of withAdvisor) {
-      log(`  ${t.name}: Advisor ...`);
-      try {
-        recs.push(...(await advisorRecs(az, t)));
-      } catch (e) { // Advisor needs Reader; cost data alone is still worth a page
-        if (e instanceof Cancelled) throw e;
-        advisorError = e instanceof AzureError ? `HTTP ${e.status}` : (e as Error).name; // not the text: it names the caller
-        log(`  ${t.name}: skipped Advisor (${(e as Error).message}). Reader on the subscription fixes access errors.`);
+  const advisor = async (t: Target, i: number) => {
+    log(`  ${t.name}: Advisor ...`);
+    try {
+      recs[i] = await advisorRecs(az, t);
+    } catch (e) { // Advisor needs Reader; cost data alone is still worth a page
+      if (e instanceof Cancelled) throw e;
+      advisorError = e instanceof AzureError ? `HTTP ${e.status}` : (e as Error).name; // not the text: it names the caller
+      log(`  ${t.name}: skipped Advisor (${(e as Error).message}). Reader on the subscription fixes access errors.`);
+    }
+  };
+
+  /** The data as far as it's read. */
+  function assemble(): CostData {
+    const known = subs.filter((s): s is SubInfo => !!s);
+    const all = (view: ViewKey) => raw.flatMap(r => r[view]);
+    const found = new Set(known.map(s => s.currency).filter((c): c is string => !!c));
+    // USD only if every row has a USD figure: a subscription may have answered in its billing currency alone
+    const usd = found.size > 1 && raw.every(r => Object.values(r).every(entries => entries.every(e => e[3] !== null && e[3] !== undefined)));
+    const mixed = found.size > 1 && !usd ? [...found].sort() : null; // the page and export say so; nothing converts them
+    const currency = usd || !found.size ? "USD" : [...found].sort()[0];
+    // units of the bill's currency per US dollar, from rows that carry both: the $ thresholds in the rules use it
+    const paired = all("service").filter(e => e[3]).map(e => [e[2], e[3] as number]);
+    let usdRate: number | null = null;
+    const pairedUsd = paired.reduce((s, [, u]) => s + u, 0);
+    if (currency === "USD") usdRate = 1;
+    else if (!mixed && pairedUsd) usdRate = Math.round(1e4 * paired.reduce((s, [c]) => s + c, 0) / pairedUsd) / 1e4;
+
+    let forecast: Forecast | null = null, forecastNote: string | null = null;
+    if (done.regions) { // the forecast is read with the regions
+      const missing = targets.map((t, i) => (forecasts[i]!.f ? null : `${t.name} (${forecasts[i]!.why})`)).filter(Boolean);
+      const billedIn = new Set<string>();
+      for (const x of forecasts) for (const c of x!.f?.currencies ?? []) if (c) billedIn.add(c);
+      if (missing.length) forecastNote = "no forecast for " + missing.join(", ");
+      else if ([...billedIn].some(c => c !== currency)) {
+        forecastNote = `the forecast came in a different currency (${[...billedIn].sort().join(", ")}) than the bill (${currency})`;
+      } else {
+        const actual = Math.round(100 * forecasts.reduce((s, x) => s + x!.f!.actual, 0)) / 100;
+        const rest = Math.round(100 * forecasts.reduce((s, x) => s + x!.f!.forecast, 0)) / 100;
+        forecast = { month: today.slice(0, 7), actual, forecast: rest, total: Math.round(100 * (actual + rest)) / 100 };
       }
     }
-    recs.sort((a, b) => (b.annual_savings ?? -1) - (a.annual_savings ?? -1));
-  }
 
-  let findings: GraphFinding[] | null = null, graphError: string | null = null;
-  if (o.graph && withAdvisor.length) { // Resource Graph, like Advisor, reads subscriptions
-    log("  Resource Graph ...");
-    [findings, graphError] = await graphFindings(az, withAdvisor, log);
+    const views: Partial<Record<ViewKey, ViewData>> = {};
+    const names: Record<string, Record<string, string>> = {
+      service: {}, subscription: Object.fromEntries(known.map(s => [s.id, s.name])),
+      region: {}, resource: Object.assign({}, ...resourceNames),
+    };
+    const ready: Record<keyof typeof VIEWS, boolean> = { service: true, subscription: true, region: done.regions, resource: done.resources };
+    for (const v of Object.keys(VIEWS) as (keyof typeof VIEWS)[]) {
+      if (ready[v]) views[v] = { dims: VIEWS[v], names: names[v], rows: fold(all(v), dates.length, usd) };
+    }
+    if (tag && tagDone && !tagFailed) views.tag = { dims: ["TagValue", "ServiceName"], names: {}, tag, rows: fold(all("tag"), dates.length, usd) };
+    const advisorList = o.advisor && withAdvisor.length && done.advisor
+      ? recs.flat().sort((a, b) => (b.annual_savings ?? -1) - (a.annual_savings ?? -1)) : null;
+    return {
+      days: dates, split: days, views, currency,
+      subscriptions: known, resource_fallback: targets.filter((_, i) => fallback[i]).map(t => t.name),
+      advisor: advisorList, advisor_error: advisorError,
+      mixed_currencies: mixed, usd_rate: usdRate,
+      forecast, forecast_note: forecastNote,
+      graph: findings, graph_error: graphError, demo: false,
+      metric: o.metric,
+    };
   }
+  const pendingNow = (): Pending[] => [
+    ...(done.resources ? [] : ["resources" as const]),
+    ...(done.regions ? [] : ["regions" as const, ...(tag || !tagDone ? ["tags" as const] : []), "forecast" as const]),
+    ...(o.advisor && withAdvisor.length && !done.advisor ? ["Advisor" as const] : []),
+    ...(o.graph && withAdvisor.length && !done.graph ? ["idle checks" as const] : []),
+  ];
+  const update = () => onUpdate?.(assemble(), pendingNow());
 
-  const found = new Set(subs.map(s => s.currency).filter((c): c is string => !!c));
-  // USD only if every row has a USD figure: a subscription may have answered in its billing currency alone
-  const usd = found.size > 1 && Object.values(raw).every(entries => entries.every(e => e[3] !== null && e[3] !== undefined));
-  const mixed = found.size > 1 && !usd ? [...found].sort() : null; // the page and export say so; nothing converts them
-  if (mixed) log("  warning: these subscriptions bill in different currencies and Azure won't convert them; totals mix currencies");
-  const currency = usd || !found.size ? "USD" : [...found].sort()[0];
-  // units of the bill's currency per US dollar, from rows that carry both: the $ thresholds in the rules use it
-  const paired = raw.service.filter(e => e[3]).map(e => [e[2], e[3] as number]);
-  let usdRate: number | null = null;
-  const pairedUsd = paired.reduce((s, [, u]) => s + u, 0);
-  if (currency === "USD") usdRate = 1;
-  else if (!mixed && pairedUsd) usdRate = Math.round(1e4 * paired.reduce((s, [c]) => s + c, 0) / pairedUsd) / 1e4;
+  const choosing = chooseTag(az, targets, o.tag, log); // tag names are listed while the services are read
+  await pool(targets, concurrency, services);
+  update();
+  await pool(targets, concurrency, resources);
+  done.resources = true;
+  update();
+  tag = await choosing;
+  await pool(targets, concurrency, details);
+  done.regions = true;
+  tagDone = true;
+  update();
+  await Promise.all([
+    o.advisor && withAdvisor.length ? pool(withAdvisor, concurrency, (t, _) => advisor(t, targets.indexOf(t))) : undefined,
+    o.graph && withAdvisor.length // Resource Graph, like Advisor, reads subscriptions
+      ? (log("  Resource Graph ..."), graphFindings(az, withAdvisor, log).then(([f, err]) => { findings = f; graphError = err; }))
+      : undefined,
+  ]);
+  done.advisor = done.graph = true;
 
-  let forecast: Forecast | null = null, forecastNote: string | null = null;
-  const billedIn = new Set<string>();
-  for (const f of forecasts) for (const c of f.currencies) if (c) billedIn.add(c);
-  if (noForecast.length) forecastNote = "no forecast for " + noForecast.join(", ");
-  else if ([...billedIn].some(c => c !== currency)) {
-    forecastNote = `the forecast came in a different currency (${[...billedIn].sort().join(", ")}) than the bill (${currency})`;
-  } else if (forecasts.length) {
-    const actual = Math.round(100 * forecasts.reduce((s, f) => s + f.actual, 0)) / 100;
-    const rest = Math.round(100 * forecasts.reduce((s, f) => s + f.forecast, 0)) / 100;
-    forecast = { month: today.slice(0, 7), actual, forecast: rest, total: Math.round(100 * (actual + rest)) / 100 };
-  }
-  if (forecastNote) log(`  skipped this month's forecast: ${forecastNote}`);
+  const data = assemble();
+  if (data.mixed_currencies) log("  warning: these subscriptions bill in different currencies and Azure won't convert them; totals mix currencies");
+  if (data.forecast_note) log(`  skipped this month's forecast: ${data.forecast_note}`);
   log(`  done: ${az.requests} requests (Cost Management queries are free)`);
-
-  const views: Partial<Record<ViewKey, ViewData>> = {};
-  for (const v of Object.keys(VIEWS) as (keyof typeof VIEWS)[]) {
-    views[v] = { dims: VIEWS[v], names: names[v], rows: fold(raw[v], dates.length, usd) };
-  }
-  if (tag) views.tag = { dims: ["TagValue", "ServiceName"], names: {}, tag, rows: fold(raw.tag, dates.length, usd) };
-  return {
-    days: dates, split: days, views, currency,
-    subscriptions: subs, resource_fallback: fallback,
-    advisor: recs, advisor_error: advisorError,
-    mixed_currencies: mixed, usd_rate: usdRate,
-    forecast, forecast_note: forecastNote,
-    graph: findings, graph_error: graphError, demo: false,
-    metric: o.metric,
-  };
+  return data;
 }
