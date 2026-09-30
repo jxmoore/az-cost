@@ -1,4 +1,5 @@
 // The data contract between the fetcher (or demo) and the viewer.
+import type { RunSpec } from "../app/links";
 import type { PeriodMode } from "./period";
 
 export type ViewKey = "service" | "subscription" | "region" | "resource" | "tag";
@@ -70,6 +71,7 @@ export interface CostData {
   demo: boolean;
   generated?: string;
   metric?: Metric;
+  run?: RunSpec; // what was asked for, so the page can link to it
 }
 
 // ---------------------------------------------------------------- dates, as ISO strings in UTC arithmetic

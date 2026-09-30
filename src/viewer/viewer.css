@@ -139,3 +139,19 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted); border: 
   footer { grid-row: 5; }
   header { flex-wrap: wrap; } .legend { display: none; }
 }
+
+/* the share panel drops from the header, over the map */
+header { position: relative; }
+.hbtn.on { color: var(--text); border-color: #3a4356; }
+.hbtn:disabled { opacity: .4; cursor: default; }
+.share { position: absolute; top: calc(100% + 6px); right: 14px; z-index: 20; width: 420px; max-width: calc(100vw - 40px);
+  background: #151a23; border: 1px solid #2c3444; border-radius: 8px; padding: 12px 14px; box-shadow: 0 10px 30px #000a;
+  display: flex; flex-direction: column; gap: 9px; white-space: normal; }
+.share .h a { color: var(--muted); cursor: pointer; }
+.share p { margin: 0; color: var(--text); line-height: 1.45; }
+.share p.muted, .share .muted { color: var(--dim); font-size: 11px; }
+.share .row { display: flex; gap: 6px; }
+.share input[readonly] { flex: 1; min-width: 0; background: #0a0d12; border: 1px solid var(--line); color: var(--muted); font: 11px ui-monospace, Menlo, monospace;
+  padding: 5px 8px; border-radius: 6px; outline: none; }
+.share label.chk { white-space: normal; align-items: flex-start; }
+.share label.chk input { margin-top: 2px; }

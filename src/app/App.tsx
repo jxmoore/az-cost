@@ -8,10 +8,11 @@ import {
 } from "../azure/costs";
 import { demo } from "../core/demo";
 import { FAKE } from "../dev/fakeMode";
-import { MAX_DAYS, resolvePeriod, type PeriodMode } from "../core/period";
+import { MAX_DAYS, resolvePeriod, type PeriodMode, type PeriodSpec } from "../core/period";
 import { localToday, nowStamp, type CostData, type Metric } from "../core/types";
 import { Viewer } from "../viewer/Viewer";
 import { forgetRun, loadRun, saveRun, type SavedRun } from "./cache";
+import { parseLink, type Place, type RunSpec } from "./links";
 import "./app.css";
 
 type Phase = "boot" | "start" | "setup" | "running" | "view";
@@ -27,7 +28,9 @@ export function App() {
   const [auth, setAuth] = useState<Auth | null>(null); // MSAL, when sign-in is configured
   const [session, setSession] = useState<Session | null>(null);
   const [saved, setSaved] = useState<SavedRun | null>(null);
-  const [data, setData] = useState<{ data: CostData; who: string | null } | null>(null);
+  const [data, setData] = useState<{ data: CostData; who: string | null; place?: Place | null } | null>(null);
+  // the link this page was opened with: read what it names once signed in, and show where it points
+  const [link, setLink] = useState(() => parseLink(location.search));
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,9 +40,11 @@ export function App() {
     booted.current = true;
     (async () => {
       setSaved(await loadRun());
+      if (link?.run.demo) { runDemo(link.place); return; } // a demo link needs no Azure
       if (FAKE) { // development: a fake Azure, already signed in
-        setSession({ token: async () => "fake", who: "fake@dev", auth: null });
-        setPhase("setup");
+        const fake = { token: async () => "fake", who: "fake@dev", auth: null };
+        setSession(fake);
+        if (link) openLink(fake, link); else setPhase("setup");
         return;
       }
       const c = await loadConfig();
@@ -49,8 +54,9 @@ export function App() {
           const auth = await startAuth(c);
           setAuth(auth);
           if (auth.account) {
-            setSession({ token: tokenSource(auth), who: auth.account.username || auth.account.name || "signed in", auth });
-            setPhase("setup");
+            const signedIn = { token: tokenSource(auth), who: auth.account.username || auth.account.name || "signed in", auth };
+            setSession(signedIn);
+            if (link) openLink(signedIn, link); else setPhase("setup");
             return;
           }
         } catch (e) {
@@ -61,36 +67,64 @@ export function App() {
     })();
   }, []);
 
-  const showData = (d: CostData, who: string | null) => {
-    setData({ data: d, who });
+  const showData = (d: CostData, who: string | null, place?: Place | null) => {
+    setData(prev => ({ data: d, who, place: place === undefined ? prev?.place : place }));
     setPhase("view");
   };
   const newRun = () => {
     run?.abort.abort(); // a run still reading stops here
     setRun(null);
-    history.replaceState(null, "", location.pathname); // the viewer's #view and its history steps end here
+    setLink(null);
+    history.replaceState(null, "", location.pathname); // the link, the viewer's #view and its history steps end here
     setPhase(session ? "setup" : "start");
   };
-  const runDemo = () => { setRun(null); showData({ ...demo(30), generated: nowStamp(), metric: "ActualCost" }, null); };
-  const openSaved = () => { setRun(null); saved && showData(saved.data, saved.who); };
+  const runDemo = (place: Place | null = null) => {
+    setRun(null);
+    const run: RunSpec = { demo: true, period: { mode: "days", days: 30 }, metric: "ActualCost", tag: null };
+    showData({ ...demo(30), generated: nowStamp(), metric: "ActualCost", run }, null, place);
+  };
+  const openSaved = () => { setRun(null); saved && showData(saved.data, saved.who, null); };
+
+  /** Open a link: read the subscriptions it names that this login can see, then show the place it points to. */
+  async function openLink(sess: Session, l: NonNullable<typeof link>) {
+    setError(null);
+    const period = resolvePeriod(l.run.period);
+    if ("error" in period) { setError(`This link's period can't be read: ${period.error}`); setPhase("setup"); return; }
+    let targets: Target[];
+    if (l.run.scope) targets = [scopeTarget(l.run.scope)];
+    else {
+      setPhase("boot");
+      let visible: Subscription[];
+      try { visible = await listSubscriptions(new Azure(sess.token)); } catch (e) { setError(explain(e)); setPhase("setup"); return; }
+      targets = visible.filter(s => l.run.subs!.includes(s.id.toLowerCase())).map(subscriptionTarget);
+      const hidden = l.run.subs!.length - targets.length;
+      if (!targets.length) {
+        setError("This link is for subscriptions this login can't read. Ask whoever shared it for access (Cost Management Reader or Reader).");
+        setPhase("setup");
+        return;
+      }
+      if (hidden) setError(`${hidden} of the link's ${l.run.subs!.length} subscriptions aren't readable with this login; showing the rest.`);
+    }
+    startRun(sess, targets, { period, metric: l.run.metric, advisor: true, graph: true, tag: l.run.tag },
+      `opening a shared view: ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}, ${period.label}`,
+      { subs: l.run.subs, scope: l.run.scope, period: l.run.period, metric: l.run.metric, tag: l.run.tag }, l.place);
+  }
   const forget = async () => { await forgetRun(); setSaved(null); };
 
   /** Read costs. The map opens with the first stage (services) and fills in as the rest arrives. */
-  async function startRun(targets: Target[], o: FetchOptions, intro: string) {
-    if (!session) return;
-    const abort = new AbortController(), who = session.who;
+  async function startRun(sess: Session, targets: Target[], o: FetchOptions, intro: string, spec: RunSpec, place: Place | null = null) {
+    const abort = new AbortController(), who = sess.who;
     const update = (patch: Partial<Run>) => setRun(r => (r && r.abort === abort ? { ...r, ...patch } : r));
     const say = (m: string) => setRun(r => (r && r.abort === abort ? { ...r, log: [...r.log, m] } : r));
-    setError(null);
     setRun({ abort, log: [intro], pending: [], error: null });
     setPhase("running");
     let shown = false;
-    const stamp = (d: CostData): CostData => ({ ...d, generated: nowStamp(), metric: o.metric });
+    const stamp = (d: CostData): CostData => ({ ...d, generated: nowStamp(), metric: o.metric, run: spec });
     try {
-      const final = await fetchCosts(new Azure(session.token, say, abort.signal), targets, o, say, (d, pending) => {
+      const final = await fetchCosts(new Azure(sess.token, say, abort.signal), targets, o, say, (d, pending) => {
         if (abort.signal.aborted) return;
         update({ pending });
-        showData(stamp(d), who);
+        showData(stamp(d), who, shown ? undefined : place);
         shown = true;
       });
       if (abort.signal.aborted) return;
@@ -108,7 +142,8 @@ export function App() {
   }
 
   if (phase === "view" && data) {
-    return <Viewer data={data.data} who={data.who} onNewRun={newRun} loading={run?.pending ?? []} loadError={run?.error ?? null} />;
+    return <Viewer data={data.data} who={data.who} onNewRun={newRun} loading={run?.pending ?? []} loadError={run?.error ?? null}
+      initial={data.place ?? null} notice={error} />;
   }
 
   return (
@@ -125,10 +160,18 @@ export function App() {
         </div>
         {error && <div className="error">{error}</div>}
         {phase === "boot" && <div className="muted">Starting…</div>}
-        {phase === "start" && <Start cfg={cfg} onSignIn={auth ? () => signIn(auth) : null} saved={saved} onDemo={runDemo} onOpenSaved={openSaved} onForget={forget}
-          onToken={(token, who) => { setSession({ token: async () => token, who, auth: null }); setError(null); setPhase("setup"); }} />}
+        {phase === "start" && link && <div className="note-box">Sign in to open the view that was shared with you. You'll see only the costs
+          your own Azure access allows.</div>}
+        {phase === "start" && <Start cfg={cfg} onSignIn={auth ? () => signIn(auth) : null} saved={saved} onDemo={() => runDemo()} onOpenSaved={openSaved} onForget={forget}
+          onToken={(token, who) => {
+            const pasted = { token: async () => token, who, auth: null };
+            setSession(pasted);
+            setError(null);
+            if (link) openLink(pasted, link); else setPhase("setup");
+          }} />}
         {phase === "setup" && session &&
-          <Setup session={session} saved={saved} onDemo={runDemo} onOpenSaved={openSaved} onRead={startRun} />}
+          <Setup session={session} saved={saved} onDemo={() => runDemo()} onOpenSaved={openSaved}
+            onRead={(targets, o, intro, spec) => { setError(null); startRun(session, targets, o, intro, spec); }} />}
         {phase === "running" && run && <Running run={run} onCancel={() => { run.abort.abort(); setRun(null); setPhase("setup"); }} />}
       </div>
     </div>
@@ -196,7 +239,7 @@ function Running({ run, onCancel }: { run: Run; onCancel: () => void }) {
 
 function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
   session: Session; saved: SavedRun | null; onDemo: () => void; onOpenSaved: () => void;
-  onRead: (targets: Target[], o: FetchOptions, intro: string) => void;
+  onRead: (targets: Target[], o: FetchOptions, intro: string, spec: RunSpec) => void;
 }) {
   const [subs, setSubs] = useState<Subscription[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -223,9 +266,11 @@ function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
   function read() {
     if ("error" in period) return;
     const targets = scope ? [scopeTarget(scope)] : (subs ?? []).filter(s => picked.has(s.id)).map(subscriptionTarget);
-    onRead(targets, { period, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag: opts.tag.trim() || null },
+    const spec: PeriodSpec = { mode: periodMode, days: opts.days, ...range }, tag = opts.tag.trim() || null;
+    onRead(targets, { period, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag },
       `reading ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}: ${period.cur[0]} to ${period.cur[1]}, ` +
-      `compared with ${period.prev[0]} to ${period.prev[1]}`);
+      `compared with ${period.prev[0]} to ${period.prev[1]}`,
+      { subs: scope ? undefined : targets.map(t => t.id.toLowerCase()), scope: scope || undefined, period: spec, metric: opts.metric, tag });
   }
 
   return (

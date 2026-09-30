@@ -43,7 +43,8 @@ export async function startAuth(cfg: AppConfig): Promise<Auth> {
 }
 
 export function signIn(auth: Auth) {
-  return auth.pca.loginRedirect({ scopes: ARM_SCOPES, redirectStartPage: location.origin + "/" });
+  // back to this very page after sign-in: a shared link keeps what it points to
+  return auth.pca.loginRedirect({ scopes: ARM_SCOPES, redirectStartPage: location.href });
 }
 
 export function signOut(auth: Auth) {

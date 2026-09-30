@@ -8,6 +8,8 @@ import {
   CATS, createModel, day, esc, HINT_TAG, pct, SHOWN_HINTS, SHOWN_RECS, shortSvc, sym, VIEW_KEYS, VIEW_NAMES,
   type Model, type TNode,
 } from "./model";
+import { buildLink, subscriptionOf, type Place } from "../app/links";
+import { SharePanel } from "./Share";
 import "./viewer.css";
 
 /** The selection, as something that survives a rebuild: keys into the tree, the "+N more" box of a group, or a node
@@ -39,9 +41,11 @@ interface Props {
   onNewRun: () => void;
   loading?: string[]; // what the run is still reading: the map shows what's there and fills in
   loadError?: string | null; // the run stopped early: what's shown is all there is
+  initial?: Place | null; // where a shared link points: shown once its view has been read
+  notice?: string | null; // something to know about what's shown (a link's subscriptions this login can't read)
 }
 
-export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: Props) {
+export function Viewer({ data, who, onNewRun, loading = [], loadError = null, initial = null, notice = null }: Props) {
   const M = useMemo(() => createModel(data, summarize(data)), [data]);
   const { DATA } = M;
 
@@ -187,12 +191,14 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
   function onKey(e: KeyboardEvent) {
     const s = stRef.current, filterEl = filterRef.current, typing = e.target === filterEl;
     const target = e.target as HTMLElement;
+    if (e.key === "Escape" && sharing) { setSharing(false); return; }
     if (e.key === "Escape") { // one thing at a time: the filter, then the selection, then up a level
       if (typing || s.filter) { clearFilterInput(); filterEl?.blur(); commit(rebuilt(cleared(s)), null); }
       else if (live.current.selNode && live.current.selNode !== live.current.zoomNode) select(null);
       else up();
       return;
     }
+    if (target.closest?.(".share")) return; // typing and copying in the share panel
     if (typing) { // Enter keeps only the matches
       if (e.key === "Enter" && s.filter) { filterEl?.blur(); commit(rebuilt({ ...s, collapsed: true }), null); }
       return;
@@ -206,6 +212,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
     else if (e.key === "Enter") live.current.selNode ? open(live.current.selNode) : step(1);
     else if (e.key === "Backspace") { e.preventDefault(); up(); }
     else if (e.key === "e") exportJSON();
+    else if (e.key === "s" && DATA.run) setSharing(v => !v);
     else if (e.key === "c" || e.key === "t") commit({ ...s, change: !s.change }, null);
     else if (/^[1-5]$/.test(e.key)) setView(VIEW_KEYS[+e.key - 1]);
   }
@@ -259,6 +266,32 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
     anim.current = el.animate([{ transform: p.opening ? small : big }, { transform: "none" }],
       { duration: Math.min(310, 130 + 45 * Math.log2(1 / (sx * sy))), easing: "cubic-bezier(.33, 1, .68, 1)" });
   });
+
+  // a shared link's place: shown as soon as its view is read (the run may still be reading it)
+  const pendingPlace = useRef(initial);
+  useEffect(() => {
+    const p = pendingPlace.current;
+    if (!p || !DATA.views[p.view]) return;
+    pendingPlace.current = null;
+    let s = showView(cleared(stRef.current), p.view);
+    const g = p.group === null ? undefined : treeOf(s).children!.find(g => g.key === p.group);
+    if (g) {
+      const leaf = p.item === null ? undefined : g.children!.find(c => c.key === p.item);
+      s = { ...s, zoom: g.key, sel: { k: leaf ? keyOf(leaf) : keyOf(g) } };
+    }
+    clearFilterInput();
+    commit(s, "replace");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [M]);
+
+  // ---------- sharing: where the page is now, as a link
+  const [sharing, setSharing] = useState(false);
+  const place: Place = {
+    view: st.view,
+    group: zoomNode?.key ?? (selNode?.kind === "group" ? selNode.key : selNode?.kind === "leaf" && !selNode.more && selNode.parent ? selNode.parent.key : null),
+    item: selNode?.kind === "leaf" && !selNode.more ? selNode.key : null,
+  };
+  const shareWhat = selNode && selNode.kind !== "root" && !selNode.more ? selNode.name : zoomNode ? zoomNode.name : "the whole bill";
 
   function exportJSON() {
     const blob = new Blob([JSON.stringify(M.EXPORT, null, 2)], { type: "application/json" });
@@ -344,7 +377,12 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
         <button className="hbtn" title="Download a JSON summary to give to an AI agent (e)" onClick={exportJSON}>Export for AI</button>
         <input id="filter" ref={filterRef} aria-label="Filter" placeholder="filter  /" autoComplete="off" spellCheck={false} value={filterText}
           onChange={e => { setFilterText(e.target.value); commit(rebuilt({ ...stRef.current, filter: e.target.value.trim(), collapsed: false }), null); }} />
+        <button className={"hbtn" + (sharing ? " on" : "")} title={DATA.run ? "Link to this view, to share (s)" : "This run can't be linked to (it was saved by an older version)"}
+          disabled={!DATA.run} onClick={() => setSharing(v => !v)}>Share</button>
         <button className="hbtn" title="Read costs again, or pick other subscriptions" onClick={onNewRun}>New run</button>
+        {sharing && DATA.run && <SharePanel run={DATA.run} place={place} what={shareWhat} viewName={VIEW_NAMES[st.view] || M.TAG}
+          sub={subscriptionOf(place.view, place.group, place.item)} subName={(id: string) => DATA.subscriptions.find(x => x.id.toLowerCase() === id)?.name ?? id}
+          current={[DATA.days[M.SPLIT], DATA.days[M.N - 1]]} periodLabel={M.LABEL} build={buildLink} onClose={() => setSharing(false)} />}
       </header>
       <div className="sub">
         <span><b>{M.money(root.cur)}</b> · {M.period()}</span>
@@ -352,6 +390,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
         {loading.length > 0 && <span className="loading" title="the map shows what's read so far; views and lists appear as they arrive">
           <i />reading {loading.join(", ")}…</span>}
         {loadError && <span className="warn" title={loadError}>stopped early: {loadError.split("\n")[0]}</span>}
+        {notice && <span className="warn" title={notice}>{notice}</span>}
         {DATA.mixed_currencies && <span className="warn" title="Azure couldn't convert these subscriptions to one currency, so every amount adds different currencies">totals mix {DATA.mixed_currencies.join(" and ")}: Azure didn't convert them</span>}
         {M.totalsOnly(st.view) && <span title="too many resources for a daily series: each resource has one total per period">period totals for {DATA.resource_fallback.join(", ")}</span>}
         {st.view === "tag" && !narrowed && <span title={`spend on resources without the ${M.TAG} tag`}>untagged {M.money(M.UNTAGGED)} ({pct(M.grand > 0 ? M.UNTAGGED / M.grand : 0)} of bill)</span>}
@@ -378,7 +417,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null }: 
         onBudget={id => reveal("subscription", n => n.kind === "group" && n.key === id)} />
       <footer>
         <span><kbd>click</kbd>select</span><span><kbd>click</kbd>again or <kbd>enter</kbd>open</span><span><kbd>tab</kbd>next</span><span><kbd>⌫</kbd>up</span>
-        <span>{VIEW_KEYS.map((k, i) => (DATA.views[k] ? <kbd key={k}>{i + 1}</kbd> : null))}view</span><span><kbd>c</kbd>color</span><span><kbd>/</kbd>filter</span><span><kbd>e</kbd>export</span><span><kbd>esc</kbd>clear</span>
+        <span>{VIEW_KEYS.map((k, i) => (DATA.views[k] ? <kbd key={k}>{i + 1}</kbd> : null))}view</span><span><kbd>c</kbd>color</span><span><kbd>/</kbd>filter</span><span><kbd>e</kbd>export</span><span><kbd>s</kbd>share</span><span><kbd>esc</kbd>clear</span>
         <span className="spacer" />
         <span>
           {DATA.demo && <><span className="badge">demo data</span> </>}
