@@ -173,5 +173,7 @@ table.costs { width: 100%; border-collapse: collapse; }
 .costs tr.sel td.name { box-shadow: inset 2px 0 0 var(--accent); }
 .costs tr.dim { opacity: .3; }
 .costs tr.gone td { color: var(--dim); }
+.costs .opens { color: var(--dim); margin-left: 8px; }
+.costs tr:hover .opens, .costs tr.sel .opens { color: var(--accent); }
 .costs .dimc { color: var(--muted); }
 .costs tfoot td { position: sticky; bottom: 0; background: var(--bg); color: var(--muted); border-top: 1px solid var(--line); border-bottom: 0; }

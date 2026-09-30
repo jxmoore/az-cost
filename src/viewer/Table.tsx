@@ -15,6 +15,7 @@ interface Props {
   selNode: TNode | null;
   dimMisses: boolean; // the filter is on and dims what it doesn't match
   levelDim: Dim; // what the rows are (services, meters, resources...)
+  canOpen: (n: TNode) => boolean; // rows that open to something new get a ▸
   onSelect: (n: TNode) => void;
   onOpen: (n: TNode) => void;
 }
@@ -31,7 +32,7 @@ const value = (n: TNode, c: Col, grand: number): number | string => {
   }
 };
 
-export function Table({ M, view, base, selNode, dimMisses, levelDim, onSelect, onOpen }: Props) {
+export function Table({ M, view, base, selNode, dimMisses, levelDim, canOpen, onSelect, onOpen }: Props) {
   const [sort, setSort] = useState<{ col: Col; desc: boolean }>({ col: "cur", desc: true });
   const rows = [...base.children!, ...base.gone]; // what went to zero is listed too, at the bottom by default
   rows.sort((a, b) => {
@@ -56,11 +57,12 @@ export function Table({ M, view, base, selNode, dimMisses, levelDim, onSelect, o
         <tbody>
           {rows.map(n => {
             const d = n.cur - n.prev;
+            const opens = canOpen(n);
             const cls = (n === selNode ? "sel " : "") + (dimMisses && !n.hit ? "dim " : "") + (n.cur < 0.005 ? "gone" : "");
             return (
               <tr key={n.key} className={cls} onClick={() => (n === selNode ? onOpen(n) : onSelect(n))}
                 onDoubleClick={() => onOpen(n)} title={n.full}>
-                <td className="name"><i style={{ background: M.color(n, view, false) }} />{n.name}</td>
+                <td className="name"><i style={{ background: M.color(n, view, false) }} />{n.name}{opens && <span className="opens" title="click again to open">▸</span>}</td>
                 <td className="num">{M.money(n.cur)}</td>
                 <td className="num dimc">{M.money(n.prev)}</td>
                 <td className={"num " + (Math.abs(d) < 0.005 ? "" : d > 0 ? "upc" : "downc")}>{d > 0 ? "+" : ""}{M.money(d)}</td>

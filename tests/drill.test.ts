@@ -28,6 +28,23 @@ describe("drilling into the detail", () => {
     }
   });
 
+  it("opens a VM on a meter to what's attached to it, and nothing else there", () => {
+    const rel = d.related!, app1 = level(detail, [VMS, D4S], "resource")[0].key, app2 = level(detail, [VMS, D4S], "resource")[1].key;
+    expect(defaultNext([VMS, D4S, { dim: "resource", key: app1 }], rel)).toBe("attached");
+    expect(defaultNext([VMS, D4S, { dim: "resource", key: app1 }])).toBeNull(); // no Resource Graph: not clickable
+    const attached = level(detail, [VMS, D4S, { dim: "resource", key: app1 }], "attached", rel);
+    expect(attached.map(r => r.key.split("/").pop())).toEqual(["vm-app-01", "vm-app-01-data"]); // its NIC costs nothing
+    expect(attached[1].cur).toBeGreaterThan(0); // the disk bills as Storage, yet it's here
+    // a resource that isn't a VM, down a meter, doesn't open: its meters would only repeat the path
+    const disk = attached[1].key;
+    expect(defaultNext([{ dim: "service", key: "Storage" }, { dim: "meter", key: meterKey("Storage", "P30 LRS Disk") }, { dim: "resource", key: disk }], rel)).toBeNull();
+    // from the resource or type view, a VM opens to its attachments first; its meters are in the picker
+    expect(defaultNext([{ dim: "type", key: "microsoft.compute/virtualmachines" }, { dim: "resource", key: app2 }], rel)).toBe("attached");
+    expect(options([{ dim: "resource", key: app2 }], rel)).toEqual(["attached", "service", "meter"]);
+    expect(options([{ dim: "resource", key: disk }], rel)).toEqual(["service", "meter"]); // not a VM
+    expect(defaultNext([{ dim: "resource", key: disk }], rel)).toBe("meter");
+  });
+
   it("goes the other way too: a resource's meters, a group's types", () => {
     const app1 = level(detail, [VMS, D4S], "resource")[0].key;
     expect(level(detail, [{ dim: "resource", key: app1 }], "meter").map(r => M.label("meter", r.key)).sort())

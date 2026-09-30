@@ -5,16 +5,19 @@ import { NO_TYPE, typeOf } from "../core/resourceTypes";
 import type { Detail, Dim } from "../core/types";
 
 /** What the detail can be broken down by. Region and tag aren't in it: those views stop at their second level. */
-export type DD = "service" | "meter" | "resource" | "group" | "type" | "subscription";
-export const DDS: DD[] = ["service", "meter", "resource", "group", "type", "subscription"];
+export type DD = "service" | "meter" | "resource" | "group" | "type" | "subscription" | "attached";
+export const DDS: DD[] = ["attached", "service", "meter", "resource", "group", "type", "subscription"];
+/** What's attached to each VM (Resource Graph): the "attached" breakdown of a VM lists it and them. */
+export type Related = Record<string, string[]> | null | undefined;
 export interface Step { dim: DD; key: string }
 export interface Drill { path: Step[]; by: DD }
 
 export const DD_DIM: Record<DD, Dim> = { service: "ServiceName", meter: "Meter", resource: "ResourceId", group: "ResourceGroupName",
-  type: "ResourceType", subscription: "SubscriptionId" };
-export const DIM_DD: Partial<Record<Dim, DD>> = Object.fromEntries(Object.entries(DD_DIM).map(([dd, dim]) => [dim, dd]));
+  type: "ResourceType", subscription: "SubscriptionId", attached: "ResourceId" };
+export const DIM_DD: Partial<Record<Dim, DD>> = { ServiceName: "service", Meter: "meter", ResourceId: "resource",
+  ResourceGroupName: "group", ResourceType: "type", SubscriptionId: "subscription" };
 export const DD_WORD: Record<DD, string> = { service: "service", meter: "meter", resource: "resource", group: "resource group", type: "type",
-  subscription: "subscription" };
+  subscription: "subscription", attached: "attached disks, NICs, IPs" };
 
 /** A meter's key: its service and its name (the same name, "Data Stored", is a different meter in Storage and Cosmos DB). */
 export const meterKey = (service: string, meter: string) => `${service}\u0000${meter}`;
@@ -40,7 +43,7 @@ export function factsOf(detail: Detail): Fact[] {
   return out;
 }
 
-const matches = (f: Fact, s: Step) => f[s.dim] === s.key;
+const matches = (f: Fact, s: Step) => s.dim !== "attached" && f[s.dim] === s.key;
 
 /** What a path already says: a resource is in one group, type and subscription, and a meter is in one service. */
 function implied(path: Step[]): Set<DD> {
@@ -54,27 +57,40 @@ function implied(path: Step[]): Set<DD> {
   return out;
 }
 
-/** What the last step can be broken down by. */
-export const options = (path: Step[]): DD[] => { const i = implied(path); return DDS.filter(d => !i.has(d)); };
+/** What the last step can be broken down by: never what the path already says, and "attached" only for a VM that
+ * Resource Graph knows the attachments of. */
+export function options(path: Step[], related?: Related): DD[] {
+  const i = implied(path), last = path[path.length - 1];
+  const vm = last?.dim === "resource" && !!related?.[last.key]?.length;
+  return DDS.filter(d => (d === "attached" ? vm && !path.some(s => s.dim === "attached") : !i.has(d)));
+}
 
-// the natural next level after each kind of step: service, meter, resource, meter...
+// the natural next level after each kind of step: service, meter, resource, then a VM's disks, NICs and IPs
 const NEXT: Record<DD, DD[]> = {
-  service: ["meter", "resource"], meter: ["resource", "group"], resource: ["meter", "service"],
-  group: ["type", "resource", "service"], type: ["resource", "meter"], subscription: ["service", "group", "type"],
+  service: ["meter", "resource"], meter: ["resource", "group"], resource: ["attached", "meter", "service"],
+  group: ["type", "resource", "service"], type: ["resource", "meter"], subscription: ["service", "group", "type"], attached: [],
 };
-export function defaultNext(path: Step[]): DD | null {
-  const open = options(path);
-  return NEXT[path[path.length - 1].dim].find(d => open.includes(d)) ?? open[0] ?? null;
+/** Where opening the path's last box goes, or null when there's nowhere new: a VM already on one meter opens to
+ * what's attached to it, and any other resource there doesn't open (its meters would only repeat the path). */
+export function defaultNext(path: Step[], related?: Related): DD | null {
+  const open = options(path, related), last = path[path.length - 1].dim;
+  if (last === "attached") return null;
+  const next = NEXT[last].find(d => open.includes(d)) ?? open[0] ?? null;
+  // down a meter to a resource, the resource's own breakdowns (service, meter) say nothing new: stop there
+  return last === "resource" && path.some(s => s.dim === "meter") && next !== "attached" ? null : next;
 }
 
 export interface LevelRow { key: string; cur: number; prev: number }
 
-/** The facts on a path, grouped by `by`: one row per key, biggest first. */
-export function level(detail: Detail, path: Step[], by: DD): LevelRow[] {
+/** The facts on a path, grouped by `by`: one row per key, biggest first. "attached" is the path's last resource and
+ * what's attached to it, whatever they were billed as (a VM's disk is Storage, not Virtual Machines). */
+export function level(detail: Detail, path: Step[], by: DD, related?: Related): LevelRow[] {
   const out = new Map<string, LevelRow>();
+  const last = path[path.length - 1];
+  const members = by === "attached" && last ? new Set([last.key, ...(related?.[last.key] ?? [])]) : null;
   for (const f of factsOf(detail)) {
-    if (!path.every(s => matches(f, s))) continue;
-    const key = f[by];
+    if (members ? !members.has(f.resource) : !path.every(s => matches(f, s))) continue;
+    const key = by === "attached" ? f.resource : f[by];
     let r = out.get(key);
     if (!r) out.set(key, (r = { key, cur: 0, prev: 0 }));
     r.cur += f.cur;

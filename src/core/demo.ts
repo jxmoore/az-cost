@@ -86,6 +86,20 @@ function demoBudgets(): Budget[] {
   ];
 }
 
+/** What's attached to the demo's VMs: vm-app-01's data disk bills on its own, the NICs cost nothing. */
+function demoRelated(): Record<string, string[]> {
+  const id = (sub: string, rg: string, path: string) => demoRid(sub, rg, path).toLowerCase();
+  const vm = (sub: string, rg: string, name: string, disks: string[]): [string, string[]] => [id(sub, rg, `${VM}/${name}`),
+    [...disks.map(d => id(sub, rg, `microsoft.compute/disks/${d}`)), id(sub, rg, `microsoft.network/networkinterfaces/${name}-nic`)]];
+  return Object.fromEntries([
+    vm(P, "rg-app-prod", "vm-app-01", ["vm-app-01-data"]),
+    vm(P, "rg-app-prod", "vm-app-02", []),
+    vm(D, "rg-etl", "vm-etl-worker", []),
+    vm(D, "rg-ml", "vm-gpu-train", []),
+    vm(S, "rg-legacy", "vm-legacy-ftp", []),
+  ]);
+}
+
 const DEMO_TAG = "environment";
 const DEMO_ENV: Record<string, string> = { [P]: "production", [S]: "staging", [D]: "production", [X]: "dev" };
 const DEMO_UNTAGGED = new Set(["", "rg-legacy", "rg-backup", "rg-ai-sandbox", "mc_rg-aks-prod_aks-prod_eastus"]); // the usual gaps
@@ -190,6 +204,6 @@ export function demo(days: number, today: string = localToday()): CostData {
     resource_fallback: [], advisor: demoAdvisor(), advisor_error: null, budgets: demoBudgets(), budget_error: null,
     forecast: demoForecast(views, dates, today), forecast_note: null,
     graph: demoGraph(), graph_error: null, demo: true,
-    detail: { meters, rows: pack(detail) }, detail_note: null,
+    detail: { meters, rows: pack(detail) }, detail_note: null, related: demoRelated(),
   };
 }

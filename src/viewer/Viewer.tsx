@@ -146,28 +146,30 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     const path = s.drill?.path ?? [g];
     commit(path.length === 1 && by === natural(s) ? { ...s, drill: null, more: 0, sel: null } : { ...s, drill: { path, by }, more: 0, sel: null }, "push");
   }
+  /** Where opening a box goes into the detail: the drill it becomes, or null when it doesn't open that way. */
+  function drillInto(s: VS, n: TNode, zoomNode: TNode | undefined): Drill | null {
+    if (!M.DETAIL || !zoomNode || !(n.detail || (n.kind === "leaf" && n.parent === zoomNode && M.DRILLABLE.has(s.view)))) return null;
+    let path: Step[] | null = null;
+    if (n.detail && s.drill) path = [...s.drill.path, { dim: s.drill.by, key: n.key }];
+    else if (!n.detail) {
+      const [A, B] = DATA.views[s.view]!.dims, g = stepFor(A, zoomNode.key), l = stepFor(B, n.key, zoomNode.key);
+      path = g && l ? [g, l] : null;
+    }
+    const by = path && defaultNext(path, M.RELATED);
+    return path && by ? { path, by } : null;
+  }
+  /** Whether opening a box shows something new: the table marks the rows that do. */
+  const canOpen = (n: TNode) => !!n.more || (n.kind === "group" && !zoomNode) || !!drillInto(st, n, zoomNode);
   function open(n: TNode | null) {
     const s = stRef.current, { root, lay, zoomNode } = live.current;
     if (n?.more && s.zoom !== null) { commit({ ...s, more: s.more + 1, sel: null }, "push"); return; } // one level into the long tail
     // past the group's boxes: a box of the opened group, or of a drilled level, opens into the detail
-    if (n && M.DETAIL && zoomNode && (n.detail || (n.kind === "leaf" && n.parent === zoomNode && M.DRILLABLE.has(s.view)))) {
-      let path: Step[] | null = null;
-      if (n.detail && s.drill) path = [...s.drill.path, { dim: s.drill.by, key: n.key }];
-      else if (!n.detail) {
-        const [A, B] = DATA.views[s.view]!.dims, g = stepFor(A, zoomNode.key), l = stepFor(B, n.key, zoomNode.key);
-        path = g && l ? [g, l] : null;
-      }
-      let by = path && defaultNext(path);
-      // the path has nothing left to say (a VM on one meter is one number): open the box on its own instead, so
-      // Virtual Machines / D4s v5 / vm-app-01 shows everything vm-app-01 spent on
-      if (path && !by && n.detail && s.drill) {
-        path = [{ dim: s.drill.by, key: n.key }];
-        by = defaultNext(path);
-      }
-      if (!path || !by) return;
+    if (n && zoomNode && (n.detail || n.parent === zoomNode)) {
+      const drill = drillInto(s, n, zoomNode);
+      if (!drill) return; // nothing new past it: a resource already on one meter (unless it's a VM with attachments)
       const cell = lay.cells.find(c => c.n === n);
       pendingAnim.current = { rect: cell && boxOf(cell), opening: true };
-      commit({ ...s, drill: { path, by }, more: 0, sel: null }, "push");
+      commit({ ...s, drill, more: 0, sel: null }, "push");
       return;
     }
     const g = n?.kind === "leaf" ? n.parent : n;
@@ -409,7 +411,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   // ---------- header and the line under it (a crumb jump doesn't animate)
   const crumbUp = () => { commit({ ...stRef.current, more: 0, drill: null }, null); up(false); };
   // "break down by": at an opened group of a view the detail can follow, and at every drilled level
-  const byStep = groupStep(st), byOptions = byStep && M.DRILLABLE.has(st.view) ? options(st.drill?.path ?? [byStep]) : [];
+  const byStep = groupStep(st), byOptions = byStep && M.DRILLABLE.has(st.view) ? options(st.drill?.path ?? [byStep], M.RELATED) : [];
   const byNow: DD | undefined = st.drill?.by ?? DIM_DD[B];
   const picker = zoomNode && byOptions.length > 0 && (
     <select className="by" value={M.DETAIL ? byNow : ""} disabled={!M.DETAIL} onChange={e => breakDownBy(e.target.value as DD)}
@@ -496,7 +498,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
       </div>
       <div id="mapbox">
         {st.table && <Table M={M} view={st.view} base={base} selNode={selNode} dimMisses={!!st.filter && !st.collapsed}
-          levelDim={drilled ? DD_DIM[st.drill!.by] : base === root ? A : B} onSelect={select} onOpen={open} />}
+          levelDim={drilled ? DD_DIM[st.drill!.by] : base === root ? A : B} canOpen={canOpen} onSelect={select} onOpen={open} />}
         <div id="map" ref={mapRef} hidden={st.table} tabIndex={0} onClick={onMapClick} onMouseMove={onMapMove}
           onMouseLeave={() => (tipRef.current!.style.display = "none")}>
           {base.children!.length ? cells

@@ -77,6 +77,8 @@ export interface CostData {
   graph: GraphFinding[] | null;
   graph_error: string | null;
   detail?: Detail | null; // null: not read (yet), or too big to read (detail_note says)
+  // what's attached to each VM (its disks, NICs and their public IPs), from Resource Graph: VM id -> resource ids, lowercase
+  related?: Record<string, string[]> | null;
   detail_note?: string | null;
   demo: boolean;
   generated?: string;

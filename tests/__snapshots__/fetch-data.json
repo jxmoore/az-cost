@@ -1450,6 +1450,13 @@
   ]
  },
  "detail_note": null,
+ "related": {
+  "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1": [
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/disks/vm-dev1-os",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.network/networkinterfaces/vm-dev1-nic",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net/providers/microsoft.network/publicipaddresses/pip-old"
+  ]
+ },
  "mixed_currencies": [
   "EUR",
   "USD"

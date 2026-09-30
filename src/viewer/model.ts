@@ -208,13 +208,14 @@ export function createModel(data: CostData, EXPORT: Summary) {
   }
 
   // ---------- drilling past a view's two levels, into the detail
-  const DETAIL = DATA.detail ?? null;
+  const DETAIL = DATA.detail ?? null, RELATED = DATA.related ?? null;
   const DRILLABLE = new Set<ViewKey>(["service", "subscription", "resource", "type"]); // regions and tag values aren't in the detail
   const SUB_NAMES = Object.fromEntries((DATA.subscriptions || []).map(s => [s.id.toLowerCase(), s.name]));
   const RESOURCE_GROUP_NAMES = DATA.views.resource?.names ?? {};
   const bare = (key: string) => /^\/subscriptions\/[^/]+$/.test(key); // a charge on no resource (or no resource group)
   function label(dd: DD, key: string): string {
     switch (dd) {
+      case "attached": return bare(key) ? "(no resource)" : lastSeg(key);
       case "service": return shortSvc(key);
       case "meter": return key.split("\u0000")[1] ?? key;
       case "resource": return bare(key) ? "(no resource)" : lastSeg(key);
@@ -230,7 +231,7 @@ export function createModel(data: CostData, EXPORT: Summary) {
     const cacheKey = JSON.stringify([d, filter, filter ? collapse : false]);
     const hit = drills.get(cacheKey);
     if (hit) return hit;
-    const all = DETAIL ? level(DETAIL, d.path, d.by) : [], q = filter.toLowerCase(), last = d.path[d.path.length - 1];
+    const all = DETAIL ? level(DETAIL, d.path, d.by, RELATED) : [], q = filter.toLowerCase(), last = d.path[d.path.length - 1];
     const names = d.path.map(s => label(s.dim, s.key));
     const base: TNode = { kind: "group", key: "\u0000drill", name: names[names.length - 1], full: names.join(" / "), dim: DD_DIM[last.dim],
       parent: null, children: [], gone: [], daily: new Float64Array(N), cur: 0, prev: 0, credits: 0, size: null, hit: false, detail: true };
@@ -383,7 +384,7 @@ export function createModel(data: CostData, EXPORT: Summary) {
   const grainWord = (b: Budget) => GRAIN_WORD[b.time_grain] ?? b.time_grain;
 
   return {
-    DATA, EXPORT, BUDGETS, budgetState, budgetsOf, grainWord, DETAIL, DRILLABLE, drillLevel, label, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
+    DATA, EXPORT, BUDGETS, budgetState, budgetsOf, grainWord, DETAIL, RELATED, DRILLABLE, drillLevel, label, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
     money, bigMoney, period, category, color, tree, credits, totalsOnly, portalHref,
     tipDetail, tipLine, biggestDrops, worthALook, marks, isTodo,
   };

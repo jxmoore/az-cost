@@ -127,6 +127,14 @@ function budgets(sub: string): Reply {
   ] } };
 }
 
+// what's attached to the VM: a NIC (free) with the old public IP on it, so opening vm-dev1 shows the IP's cost
+const related = (): Reply => ({ status: 200, body: { data: [
+  { id: rid(A, "rg-app-dev", "Microsoft.Compute/virtualMachines/vm-dev1").toLowerCase(), kind: "microsoft.compute/virtualmachines",
+    osDisk: rid(A, "rg-app-dev", "Microsoft.Compute/disks/vm-dev1-os"), dataDisks: [], nics: [{ id: rid(A, "rg-app-dev", "Microsoft.Network/networkInterfaces/vm-dev1-nic") }] },
+  { id: rid(A, "rg-app-dev", "Microsoft.Network/networkInterfaces/vm-dev1-nic").toLowerCase(), kind: "microsoft.network/networkinterfaces",
+    ipConfigs: [{ properties: { publicIPAddress: { id: rid(A, "rg-net", "Microsoft.Network/publicIPAddresses/pip-old") } } }] },
+] } });
+
 const graph = (): Reply => ({ status: 200, body: { data: [
   { check: "unused-ip", id: rid(A, "rg-net", "Microsoft.Network/publicIPAddresses/pip-old").toLowerCase(), name: "pip-old", resourceGroup: "rg-net", subscriptionId: A },
   { check: "unattached-disk", id: rid(A, "rg-x", "Microsoft.Compute/disks/free").toLowerCase(), name: "free", resourceGroup: "rg-x", subscriptionId: A }, // costs nothing
@@ -157,7 +165,7 @@ export function fakeAzure({ delay = 0 } = {}) {
       r = { status: 200, body: { value: counts.map(([tagName, value]) => ({ tagName, count: { value } })) } };
     } else if (path.includes("/providers/Microsoft.Advisor/recommendations")) r = advisor(sub);
     else if (path.includes("/providers/Microsoft.Consumption/budgets")) r = budgets(sub);
-    else if (path === "/providers/Microsoft.ResourceGraph/resources") r = graph();
+    else if (path === "/providers/Microsoft.ResourceGraph/resources") r = String(body?.query).includes("networkinterfaces") ? related() : graph();
     else r = { status: 404, body: { error: { code: "NotFound", message: url } } };
     return new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers });
   };

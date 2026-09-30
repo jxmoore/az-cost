@@ -166,6 +166,46 @@ const IDLE_QUERY = `resources
 | where check != ''
 | project check, id = tolower(id), name, resourceGroup, subscriptionId`;
 
+// What's attached to each VM: its disks and NICs, and each NIC's public IPs. The cost data can't tell (a disk is a
+// resource of its own), so opening a VM shows these from here. Ids are pulled out of the properties client-side.
+const RELATED_QUERY = `resources
+| where type =~ 'microsoft.compute/virtualmachines' or type =~ 'microsoft.network/networkinterfaces'
+| project id = tolower(id), kind = tolower(type),
+    osDisk = properties.storageProfile.osDisk.managedDisk.id, dataDisks = properties.storageProfile.dataDisks,
+    nics = properties.networkProfile.networkInterfaces, ipConfigs = properties.ipConfigurations`;
+const MAX_RELATED_ROWS = 20000;
+
+/** VM id -> the ids of its disks, NICs and the NICs' public IPs. Nothing (not an error) when Resource Graph says no:
+ * VMs then just aren't opened past their meters. */
+async function relatedResources(az: Azure, targets: Target[], log: Log): Promise<Record<string, string[]> | null> {
+  const subs = [...new Set(targets.map(t => /^\/subscriptions\/([^/]+)/i.exec(t.scope)?.[1]).filter((s): s is string => !!s))];
+  const vms = new Map<string, string[]>(), nicIps = new Map<string, string[]>();
+  const ids = (xs: unknown, pick: (x: any) => unknown) => (Array.isArray(xs) ? xs : []).map(pick).filter((x): x is string => typeof x === "string" && !!x).map(x => x.toLowerCase());
+  let options: Record<string, unknown> = { resultFormat: "objectArray", $top: 1000 }, rows = 0;
+  try {
+    while (rows < MAX_RELATED_ROWS) {
+      const page: any = await az.call("POST", `/providers/Microsoft.ResourceGraph/resources?api-version=${GRAPH_API}`,
+        { subscriptions: subs, query: RELATED_QUERY, options });
+      for (const r of page.data ?? []) {
+        rows++;
+        if (r.kind === "microsoft.network/networkinterfaces") nicIps.set(r.id, ids(r.ipConfigs, c => c?.properties?.publicIPAddress?.id));
+        else vms.set(r.id, [...ids([r.osDisk], x => x), ...ids(r.dataDisks, d => d?.managedDisk?.id), ...ids(r.nics, n => n?.id)]);
+      }
+      if (!page.$skipToken) break;
+      options = { ...options, $skipToken: page.$skipToken };
+    }
+  } catch (e) {
+    if (e instanceof Cancelled) throw e;
+    log(`  skipped what's attached to VMs (${(e as Error).message})`);
+    return null;
+  }
+  const out: Record<string, string[]> = {};
+  for (const [vm, parts] of [...vms].sort(([a], [b]) => (a < b ? -1 : 1))) { // sorted: the same bill gives the same data
+    out[vm] = [...new Set(parts.flatMap(p => [p, ...(nicIps.get(p) ?? [])]))];
+  }
+  return out;
+}
+
 /** What IDLE_QUERY finds in Azure Resource Graph, for all the subscriptions in one query, at most MAX_GRAPH_ROWS
  * rows. When it says no, returns nothing and the failure's status: the cost data alone is still worth a page. */
 async function graphFindings(az: Azure, targets: Target[], log: Log): Promise<[GraphFinding[], string | null]> {
@@ -338,7 +378,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const settled = new Set<string>(); // targets whose columns a query has already worked with
   const done = { resources: false, regions: false, detail: false, budgets: false, advisor: false, graph: false };
   let tag: string | null = null, tagDone = false, advisorError: string | null = null;
-  let findings: GraphFinding[] | null = null, graphError: string | null = null;
+  let findings: GraphFinding[] | null = null, graphError: string | null = null, related: Record<string, string[]> | null = null;
 
   const run = async (t: Target, groupings: Grouping[], opts: { start?: string; end?: string; maxPages?: number; granularity?: null } = {}) => {
     if (!columns.has(t.id)) columns.set(t.id, AGGREGATIONS.map(a => [...a]));
@@ -530,6 +570,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
         rows: fold(detailRaw.flat(), 2, usd),
       } : null,
       detail_note: detailNote,
+      related: done.graph ? related : null,
       mixed_currencies: mixed, usd_rate: usdRate,
       forecast, forecast_note: forecastNote,
       graph: findings, graph_error: graphError, demo: false,
@@ -564,6 +605,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
     o.graph && withAdvisor.length // Resource Graph, like Advisor, reads subscriptions
       ? (log("  Resource Graph ..."), graphFindings(az, withAdvisor, log).then(([f, err]) => { findings = f; graphError = err; }))
       : undefined,
+    o.graph && withAdvisor.length ? relatedResources(az, withAdvisor, log).then(r => { related = r; }) : undefined,
   ]);
   done.detail = done.budgets = done.advisor = done.graph = true;
 
