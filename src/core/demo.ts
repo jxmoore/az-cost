@@ -209,5 +209,6 @@ export function demo(days: number, today: string = localToday()): CostData {
     forecast: demoForecast(views, dates, today), forecast_note: null,
     graph: demoGraph(), graph_error: null, demo: true,
     detail: { meters, rows: pack(detail), regions, tags }, detail_note: null, related: demoRelated(),
+    tag_names: [{ name: DEMO_TAG, count: Object.keys(tags).length }],
   };
 }

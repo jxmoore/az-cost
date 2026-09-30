@@ -13,6 +13,7 @@ import { downloadCsv, downloadLevelCsv } from "./csv";
 import { defaultNext, DD_DIM, DD_WORD, DIM_DD, options, stepFor, type DD, type Drill, type Step } from "./drill";
 import { SharePanel } from "./Share";
 import { Table } from "./Table";
+import { TagPicker } from "./TagPicker";
 import "./viewer.css";
 
 /** The selection, as something that survives a rebuild: keys into the tree, the "+N more" box of a group, or a node
@@ -47,10 +48,12 @@ interface Props {
   loading?: string[]; // what the run is still reading: the map shows what's there and fills in
   loadError?: string | null; // the run stopped early: what's shown is all there is
   initial?: Place | null; // where a shared link points: shown once its view has been read
+  onChooseTag?: ((tag: string) => void) | null; // read the tag view for another tag (null: can't, say why in tagUnavailable)
+  tagUnavailable?: string | null;
   notice?: string | null; // something to know about what's shown (a link's subscriptions this login can't read)
 }
 
-export function Viewer({ data, who, onNewRun, loading = [], loadError = null, initial = null, notice = null }: Props) {
+export function Viewer({ data, who, onNewRun, loading = [], loadError = null, initial = null, notice = null, onChooseTag = null, tagUnavailable = null }: Props) {
   const M = useMemo(() => createModel(data, summarize(data)), [data]);
   const { DATA } = M;
 
@@ -257,13 +260,14 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     const s = stRef.current, filterEl = filterRef.current, typing = e.target === filterEl;
     const target = e.target as HTMLElement;
     if (e.key === "Escape" && sharing) { setSharing(false); return; }
+    if (e.key === "Escape" && choosingTag) { setChoosingTag(false); return; }
     if (e.key === "Escape") { // one thing at a time: the filter, then the selection, then up a level
       if (typing || s.filter) { clearFilterInput(); filterEl?.blur(); commit(rebuilt(cleared(s)), null); }
       else if (live.current.selNode && live.current.selNode !== live.current.zoomNode) select(null);
       else up();
       return;
     }
-    if (target.closest?.(".share")) return; // typing and copying in the share panel
+    if (target.closest?.(".share")) return; // typing and copying in the share and tag panels
     if (typing) { // Enter keeps only the matches
       if (e.key === "Enter" && s.filter) { filterEl?.blur(); commit(rebuilt({ ...s, collapsed: true }), null); }
       return;
@@ -356,6 +360,14 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
 
   // ---------- sharing: where the page is now, as a link
   const [sharing, setSharing] = useState(false);
+  const [choosingTag, setChoosingTag] = useState(false);
+  const readingTag = loading.includes("tags");
+  // a tag just read: show its view (the run's own tag view, when it arrives, doesn't take over)
+  const wantTagView = useRef(false);
+  useEffect(() => {
+    if (wantTagView.current && !readingTag && DATA.views.tag) { wantTagView.current = false; setView("tag"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [M, readingTag]);
   const place: Place = drilled ? { view: st.view, group: st.zoom, item: selNode?.detail ? selNode.key : null, drill: st.drill! } : {
     view: st.view,
     group: zoomNode?.key ?? (selNode?.kind === "group" ? selNode.key : selNode?.kind === "leaf" && !selNode.more && selNode.parent ? selNode.parent.key : null),
@@ -462,8 +474,13 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
         <div className="crumbs"><span>/</span>{crumbs}</div>
         <div className="spacer" />
         <div className="seg">
-          {VIEW_KEYS.filter(k => DATA.views[k]).map(k =>
-            <button key={k} className={k === st.view ? "on" : ""} onClick={() => setView(k)}>{VIEW_NAMES[k] || M.TAG}</button>)}
+          {VIEW_KEYS.filter(k => k !== "tag" && DATA.views[k]).map(k =>
+            <button key={k} className={k === st.view ? "on" : ""} onClick={() => setView(k)}>{VIEW_NAMES[k]}</button>)}
+          {/* the tag view is named after its tag, which is yours to choose */}
+          {DATA.views.tag && <button className={st.view === "tag" ? "on" : ""} onClick={() => setView("tag")} title={`the bill by the values of the ${M.TAG} tag`}>
+            Tag: {M.TAG}</button>}
+          <button className={"caret" + (choosingTag ? " on" : "")} onClick={() => setChoosingTag(v => !v)}
+            title={DATA.views.tag ? "split the bill by another tag" : "split the bill by a tag"}>{readingTag ? "…" : DATA.views.tag ? "▾" : "Tag ▾"}</button>
         </div>
         <div className="seg" title="the current level as a map or a table (t)">
           <button className={st.table ? "" : "on"} onClick={() => commit({ ...stRef.current, table: false }, null)}>Map</button>
@@ -480,6 +497,9 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
         <button className={"hbtn" + (sharing ? " on" : "")} title={DATA.run ? "Link to this view, to share (s)" : "This run can't be linked to (it was saved by an older version)"}
           disabled={!DATA.run} onClick={() => setSharing(v => !v)}>Share</button>
         <button className="hbtn" title="Read costs again, or pick other subscriptions" onClick={onNewRun}>New run</button>
+        {choosingTag && <TagPicker names={DATA.tag_names ?? (DATA.views.tag ? [{ name: M.TAG, count: 0 }] : [])} current={DATA.views.tag?.tag ?? null}
+          busy={readingTag} unavailable={onChooseTag ? null : tagUnavailable ?? "Another tag can't be read here."}
+          onPick={tag => { setChoosingTag(false); wantTagView.current = true; onChooseTag?.(tag); }} onClose={() => setChoosingTag(false)} />}
         {sharing && DATA.run && <SharePanel run={DATA.run} place={place} what={shareWhat} viewName={VIEW_NAMES[st.view] || M.TAG}
           sub={shareSub} subName={(id: string) => DATA.subscriptions.find(x => x.id.toLowerCase() === id)?.name ?? id}
           current={[DATA.days[M.SPLIT], DATA.days[M.N - 1]]} periodLabel={M.LABEL} build={buildLink} onClose={() => setSharing(false)} />}

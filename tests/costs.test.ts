@@ -2,7 +2,7 @@
 // __snapshots__/: after an intended change to the fetcher or the rules, review the diff and run `npm test -- -u`.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Azure } from "../src/azure/client";
-import { fetchCosts, subscriptionTarget, type OnUpdate } from "../src/azure/costs";
+import { fetchCosts, fetchTagView, subscriptionTarget, type OnUpdate } from "../src/azure/costs";
 import { demo } from "../src/core/demo";
 import { resolvePeriod, type Period } from "../src/core/period";
 import { pit, summarize } from "../src/core/summarize";
@@ -45,6 +45,7 @@ describe("reading costs", () => {
     expect(data.advisor_error).toBe("HTTP 403"); // only the status: Azure's message names the caller
     expect(data.advisor?.[0].annual_savings).toBe(2100); // duplicate tips: the biggest saving is kept
     expect(data.views.tag?.tag).toBe("env"); // the tag on the most resources, hidden-* ignored
+    expect(data.tag_names).toEqual([{ name: "env", count: 6 }, { name: "owner", count: 2 }]); // for the picker: Env and env are one tag
     expect(data.budgets?.map(b => [b.name, b.filtered])).toEqual([["team-a-monthly", false], ["rg-data-budget", true]]); // cost budgets only
     // the detail (resource x meter, per period) adds up to the same bill as the service view, both periods
     const sum = (rows: { d: number[] }[], from: number, to: number) => rows.reduce((s, r) => s + r.d.slice(from, to).reduce((a, b) => a + b, 0), 0);
@@ -71,6 +72,22 @@ describe("reading costs", () => {
     expect(over).toHaveLength(1); // the other budget is on track
     expect(over[0]).toMatchObject({ budget: "team-a-monthly", amount: 30, reason: "forecast to reach 110% of its monthly budget by the end of the month" });
     await expect(JSON.stringify(s, null, 1)).toMatchFileSnapshot("__snapshots__/fetch-summary.json");
+  }, 20000);
+});
+
+describe("choosing another tag", () => {
+  it("reads it for the run's subscriptions and period, with each resource's value for drilling", async () => {
+    const { data } = await read();
+    const fake = fakeAzure();
+    vi.stubGlobal("fetch", fake.fetch);
+    const { view, tags } = await fetchTagView(new Azure(async () => "token"), data, "owner", () => {});
+    expect(view.tag).toBe("owner");
+    expect(view.dims).toEqual(["TagValue", "ServiceName"]);
+    expect(fake.seen.every(s => s.includes("CostManagement/query"))).toBe(true); // only the tag's own queries
+    // the same bill: the tag view adds up to what the run read, both periods
+    const sum = (rows: { d: number[] }[]) => rows.reduce((s, r) => s + r.d.reduce((a, b) => a + b, 0), 0);
+    expect(sum(view.rows)).toBeCloseTo(sum(data.views.service!.rows), 2);
+    expect(tags[data.detail!.rows.find(r => r.k[0].endsWith("/vm-dev1"))!.k[0]]).toBe("dev");
   }, 20000);
 });
 

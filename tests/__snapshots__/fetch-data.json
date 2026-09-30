@@ -1476,6 +1476,16 @@
   }
  },
  "detail_note": null,
+ "tag_names": [
+  {
+   "name": "env",
+   "count": 6
+  },
+  {
+   "name": "owner",
+   "count": 2
+  }
+ ],
  "related": {
   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1": [
    "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/disks/vm-dev1-os",

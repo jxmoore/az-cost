@@ -4,7 +4,7 @@ import { loadConfig, type AppConfig } from "../auth/config";
 import { inspectToken, signIn, signOut, startAuth, tokenSource, type Auth } from "../auth/msal";
 import { Azure, explain, type TokenSource } from "../azure/client";
 import {
-  fetchCosts, listSubscriptions, scopeTarget, subscriptionTarget, type FetchOptions, type Pending, type Subscription, type Target,
+  fetchCosts, fetchTagView, listSubscriptions, scopeTarget, subscriptionTarget, type FetchOptions, type Pending, type Subscription, type Target,
 } from "../azure/costs";
 import { demo } from "../core/demo";
 import { FAKE } from "../dev/fakeMode";
@@ -141,9 +141,37 @@ export function App() {
     }
   }
 
+  /** Split the bill by another tag: read it for this run's subscriptions and period, and keep it with the run. */
+  async function chooseTag(tag: string) {
+    if (!session || !data) return;
+    const shown = data, abort = new AbortController();
+    setError(null);
+    setRun(r => ({ abort: r?.abort ?? abort, log: r?.log ?? [], error: null, pending: [...(r?.pending ?? []).filter(p => p !== "tags"), "tags"] }));
+    const done = (patch: Partial<Run>) => setRun(r => r && { ...r, ...patch, pending: r.pending.filter(p => p !== "tags") });
+    try {
+      const { view, tags } = await fetchTagView(new Azure(session.token), shown.data, tag, () => {});
+      const d = shown.data, next: CostData = {
+        ...d, views: { ...d.views, tag: view },
+        detail: d.detail ? { ...d.detail, tags } : d.detail,
+        run: d.run ? { ...d.run, tag } : d.run, // links to this run now carry the tag
+      };
+      showData(next, shown.who);
+      done({});
+      const entry = { data: next, who: shown.who, saved: nowStamp() };
+      await saveRun(entry);
+      setSaved(entry);
+    } catch (e) { // the run is fine: say so beside it rather than as the run stopping
+      done({});
+      setError(`Couldn't read the tag "${tag}": ${explain(e).split("\n")[0]}`);
+    }
+  }
+
   if (phase === "view" && data) {
     return <Viewer data={data.data} who={data.who} onNewRun={newRun} loading={run?.pending ?? []} loadError={run?.error ?? null}
-      initial={data.place ?? null} notice={error} />;
+      initial={data.place ?? null} notice={error}
+      onChooseTag={session && !data.data.demo ? chooseTag : null}
+      tagUnavailable={data.data.demo ? "The demo has one tag. Sign in (or paste a token) to pick among your own."
+        : "Sign in (or paste a token) to read another tag for this saved run."} />;
   }
 
   return (

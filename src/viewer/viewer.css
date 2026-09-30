@@ -154,6 +154,16 @@ header { position: relative; flex-wrap: wrap; row-gap: 8px; }
 .share input[readonly] { flex: 1; min-width: 0; background: #0a0d12; border: 1px solid var(--line); color: var(--muted); font: 11px ui-monospace, Menlo, monospace;
   padding: 5px 8px; border-radius: 6px; outline: none; }
 .share label.chk { white-space: normal; align-items: flex-start; }
+.seg button.caret { padding: 4px 8px; }
+.tagpick { width: 360px; }
+.tagpick .tagq { background: #0a0d12; border: 1px solid var(--line); color: var(--text); font: inherit; padding: 6px 9px; border-radius: 6px; outline: none; }
+.tagpick .tagq:focus { border-color: #3a4356; }
+.taglist { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; }
+.tagrow { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.tagrow:hover { background: #1b212c; }
+.tagrow.on { color: var(--accent); }
+.tagrow .muted { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.share .small { font-size: 11px; padding: 6px 8px; }
 .share label.chk input { margin-top: 2px; }
 
 /* the table: the current level, every box, sortable */

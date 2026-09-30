@@ -24,6 +24,8 @@ export const VIEWS: Record<Exclude<ViewKey, "tag" | "type">, [Dim, Dim]> = { // 
 
 type FetchedView = Exclude<ViewKey, "type">;
 
+export interface TagName { name: string; count: number }
+
 export interface Subscription { id: string; name: string; state: string; tenant: string | null }
 export interface Target { id: string; name: string; scope: string; tenant: string | null }
 
@@ -87,10 +89,9 @@ async function query(az: Azure, scope: string, start: string, end: string, group
 
 const TAG_NAMES_API = "2021-04-01";
 
-/** The tag the tag view splits the bill by: the one asked for, or else the tag on the most resources across the
- * subscriptions. Azure's own hidden-* tags (hidden-link, hidden-title) don't count. null when there's none. */
-async function chooseTag(az: Azure, targets: Target[], wanted: string | null, log: Log): Promise<string | null> {
-  if (wanted) return wanted;
+/** Every tag name on the subscriptions' resources, with how many resources carry it: most first, then by name.
+ * Azure's own hidden-* tags (hidden-link, hidden-title) don't count. The page offers them in its tag picker. */
+async function listTags(az: Azure, targets: Target[], log: Log): Promise<TagName[]> {
   const counts = new Map<string, number>(), spelling = new Map<string, string>();
   for (const t of targets) {
     const sub = /^\/subscriptions\/([^/]+)/i.exec(t.scope);
@@ -114,9 +115,43 @@ async function chooseTag(az: Azure, targets: Target[], wanted: string | null, lo
       log(`  ${t.name}: couldn't list its tags (HTTP ${e.status}); ${fix}`);
     }
   }
-  if (!counts.size) return null;
-  const best = [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))[0][0]; // most resources, then by name
-  return spelling.get(best)!;
+  return [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([k, count]) => ({ name: spelling.get(k)!, count }));
+}
+
+/** Read the tag view for another tag, after a run: the bill by that tag's values, and each resource's value for
+ * drilling. Same period, cost type and currency as the run it goes into. */
+export async function fetchTagView(az: Azure, data: CostData, tag: string, log: Log): Promise<{ view: ViewData; tags: Record<string, string> }> {
+  const targets = data.run?.scope ? [scopeTarget(data.run.scope)]
+    : data.subscriptions.map(s => subscriptionTarget({ id: s.id, name: s.name, tenant: s.tenant ?? null }));
+  const dates = data.days, index = new Map(dates.map((d, i) => [d.replaceAll("-", ""), i]));
+  const metric = data.metric ?? "ActualCost", found = new Set(data.subscriptions.map(s => s.currency).filter(Boolean));
+  const usd = found.size > 1 && !data.mixed_currencies; // the run converted to US dollars: so does this
+  const perTarget: RawEntry[][] = targets.map(() => []), tags: Record<string, string> = {};
+  const grouping: Grouping[] = [{ type: "TagKey", name: tag }];
+  const read = async (t: Target, groupings: Grouping[], opts: { granularity?: null; maxPages?: number }) => {
+    const aggs = AGGREGATIONS.map(a => [...a]); // as the run did: the best cost columns this scope accepts
+    for (;;) {
+      try {
+        return await query(az, t.scope, dates[0], dates[dates.length - 1], groupings, metric, aggs[0], opts);
+      } catch (e) {
+        if (!(e instanceof AzureError) || e.status !== 400 || aggs.length === 1 || !COLUMN_ERROR.test(e.message)) throw e;
+        aggs.shift();
+      }
+    }
+  };
+  await pool(targets, CONCURRENCY, async (t, i) => {
+    log(`  ${t.name}: tag ${tag} ...`);
+    for (const r of await read(t, [...grouping, "ServiceName"], {})) {
+      const d = index.get(usageDay(r.UsageDate));
+      if (d === undefined) continue;
+      perTarget[i].push([[r.TagValue || "", serviceOf(r)], d, "Cost" in r ? r.Cost || 0 : r.PreTaxCost || 0, "CostUSD" in r ? r.CostUSD : r.PreTaxCostUSD]);
+    }
+    for (const r of await read(t, [...grouping, "ResourceId"], { granularity: null, maxPages: DETAIL_PAGES })) {
+      if (r.ResourceId && r.TagValue) tags[r.ResourceId.toLowerCase()] = r.TagValue;
+    }
+  });
+  // joined in subscription order, as a run does: the same bill gives the same data whatever answered first
+  return { view: { dims: ["TagValue", "ServiceName"], names: {}, tag, rows: fold(perTarget.flat(), dates.length, usd) }, tags };
 }
 
 /** Azure's own forecast for this calendar month: what's billed so far and what's still to come, each summed,
@@ -378,7 +413,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
   const settled = new Set<string>(); // targets whose columns a query has already worked with
   const done = { resources: false, regions: false, detail: false, budgets: false, advisor: false, graph: false };
-  let tag: string | null = null, tagDone = false, advisorError: string | null = null;
+  let tag: string | null = null, tagDone = false, advisorError: string | null = null, tagNames: TagName[] = [];
   let findings: GraphFinding[] | null = null, graphError: string | null = null, related: Record<string, string[]> | null = null;
 
   const run = async (t: Target, groupings: Grouping[], opts: { start?: string; end?: string; maxPages?: number; granularity?: null } = {}) => {
@@ -582,6 +617,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
         ...(views.tag ? { tags: Object.fromEntries(tagOf.flatMap(m => [...m])) } : {}),
       } : null,
       detail_note: detailNote,
+      tag_names: tagNames,
       related: done.graph ? related : null,
       mixed_currencies: mixed, usd_rate: usdRate,
       forecast, forecast_note: forecastNote,
@@ -599,7 +635,8 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   ];
   const update = () => onUpdate?.(assemble(), pendingNow());
 
-  const choosing = chooseTag(az, targets, o.tag, log); // tag names are listed while the services are read
+  // the tag the tag view splits the bill by: the one asked for, or the one on the most resources; the others are offered
+  const choosing = listTags(az, targets, log).then(names => { tagNames = names; return o.tag || names[0]?.name || null; });
   await pool(targets, concurrency, services);
   update();
   await pool(targets, concurrency, resources);
