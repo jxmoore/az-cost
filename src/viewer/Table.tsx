@@ -1,7 +1,7 @@
 // The map as a table: every box of the current level (all of them, no "+N more"), sortable, with both periods'
 // numbers. Selecting a row selects the box; opening a group row opens the group, as on the map.
 import { useState } from "react";
-import type { ViewKey } from "../core/types";
+import type { Dim, ViewKey } from "../core/types";
 import { pct, type Model, type TNode } from "./model";
 
 type Col = "name" | "cur" | "prev" | "change" | "pctChange" | "share" | "daily";
@@ -14,6 +14,7 @@ interface Props {
   base: TNode; // the root, or the opened group
   selNode: TNode | null;
   dimMisses: boolean; // the filter is on and dims what it doesn't match
+  levelDim: Dim; // what the rows are (services, meters, resources...)
   onSelect: (n: TNode) => void;
   onOpen: (n: TNode) => void;
 }
@@ -30,9 +31,8 @@ const value = (n: TNode, c: Col, grand: number): number | string => {
   }
 };
 
-export function Table({ M, view, base, selNode, dimMisses, onSelect, onOpen }: Props) {
+export function Table({ M, view, base, selNode, dimMisses, levelDim, onSelect, onOpen }: Props) {
   const [sort, setSort] = useState<{ col: Col; desc: boolean }>({ col: "cur", desc: true });
-  const [A, B] = M.DATA.views[view]!.dims;
   const rows = [...base.children!, ...base.gone]; // what went to zero is listed too, at the bottom by default
   rows.sort((a, b) => {
     const x = value(a, sort.col, M.grand), y = value(b, sort.col, M.grand);
@@ -40,7 +40,7 @@ export function Table({ M, view, base, selNode, dimMisses, onSelect, onOpen }: P
     return sort.desc ? -d : d;
   });
   const by = (col: Col) => setSort(s => ({ col, desc: s.col === col ? !s.desc : col !== "name" }));
-  const level = base.kind === "root" ? M.DIM[A] : M.DIM[B];
+  const level = M.DIM[levelDim];
   const total = { cur: rows.reduce((s, n) => s + n.cur, 0), prev: rows.reduce((s, n) => s + n.prev, 0) };
 
   return (
@@ -58,7 +58,7 @@ export function Table({ M, view, base, selNode, dimMisses, onSelect, onOpen }: P
             const d = n.cur - n.prev;
             const cls = (n === selNode ? "sel " : "") + (dimMisses && !n.hit ? "dim " : "") + (n.cur < 0.005 ? "gone" : "");
             return (
-              <tr key={n.key} className={cls} onClick={() => (n === selNode && n.kind === "group" ? onOpen(n) : onSelect(n))}
+              <tr key={n.key} className={cls} onClick={() => (n === selNode ? onOpen(n) : onSelect(n))}
                 onDoubleClick={() => onOpen(n)} title={n.full}>
                 <td className="name"><i style={{ background: M.color(n, view, false) }} />{n.name}</td>
                 <td className="num">{M.money(n.cur)}</td>

@@ -44,9 +44,12 @@ const round6 = (v: number) => Math.round(v * 1e6) / 1e6;
 
 type Reply = { status: number; body: unknown; headers?: Record<string, string> };
 
+/** A meter's id: Azure's are GUIDs; these are stable and readable, which is all the fake needs. */
+export const meterId = (service: string, meter: string) => `meter-${service}-${meter}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+
 function valueOf(l: Line, dim: string): string {
-  return ({ ServiceName: l.service, Meter: l.meter, ResourceGroupName: l.rg, ResourceId: l.res, ResourceLocation: l.region,
-    TagValue: l.env, SubscriptionId: l.sub } as Record<string, string>)[dim];
+  return ({ ServiceName: l.service, Meter: l.meter, MeterId: meterId(l.service, l.meter).toUpperCase(), ResourceGroupName: l.rg,
+    ResourceId: l.res, ResourceLocation: l.region, TagValue: l.env, SubscriptionId: l.sub } as Record<string, string>)[dim];
 }
 
 function costQuery(sub: string, body: any, page: number): Reply {

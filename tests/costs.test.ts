@@ -24,10 +24,10 @@ describe("reading in stages", () => {
   it("shows the map before everything is read, and never half a view", async () => {
     const updates: { views: string[]; pending: string[]; advisor: boolean }[] = [];
     await read(3, (d, pending) => updates.push({ views: Object.keys(d.views), pending, advisor: d.advisor !== null }));
-    expect(updates[0]).toEqual({ views: ["service", "subscription"], pending: ["resources", "regions", "tags", "forecast", "budgets", "Advisor", "idle checks"], advisor: false });
+    expect(updates[0]).toEqual({ views: ["service", "subscription"], pending: ["resources", "regions", "tags", "forecast", "detail", "budgets", "Advisor", "idle checks"], advisor: false });
     expect(updates[1].views).toEqual(["service", "subscription", "resource"]);
     expect(updates[2].views).toEqual(["service", "subscription", "region", "resource", "tag"]);
-    expect(updates[2].pending).toEqual(["budgets", "Advisor", "idle checks"]);
+    expect(updates[2].pending).toEqual(["detail", "budgets", "Advisor", "idle checks"]);
   }, 20000);
 
   it("gives the same data however many subscriptions are read at once", async () => {
@@ -46,6 +46,14 @@ describe("reading costs", () => {
     expect(data.advisor?.[0].annual_savings).toBe(2100); // duplicate tips: the biggest saving is kept
     expect(data.views.tag?.tag).toBe("env"); // the tag on the most resources, hidden-* ignored
     expect(data.budgets?.map(b => [b.name, b.filtered])).toEqual([["team-a-monthly", false], ["rg-data-budget", true]]); // cost budgets only
+    // the detail (resource x meter, per period) adds up to the same bill as the service view, both periods
+    const sum = (rows: { d: number[] }[], from: number, to: number) => rows.reduce((s, r) => s + r.d.slice(from, to).reduce((a, b) => a + b, 0), 0);
+    const service = data.views.service!.rows;
+    expect(sum(data.detail!.rows, 1, 2)).toBeCloseTo(sum(service, data.split, data.days.length), 2);
+    expect(sum(data.detail!.rows, 0, 1)).toBeCloseTo(sum(service, 0, data.split), 2);
+    // and knows its meters: the VM in rg-app-dev ran on D2 v2
+    const vm = data.detail!.rows.find(r => r.k[0].endsWith("/virtualmachines/vm-dev1"))!;
+    expect(data.detail!.meters[vm.k[1]]).toEqual({ service: "Virtual Machines", meter: "D2 v2" });
     await expect(JSON.stringify(data, null, 1)).toMatchFileSnapshot("__snapshots__/fetch-data.json");
   }, 20000);
 

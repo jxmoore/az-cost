@@ -1295,6 +1295,161 @@
   }
  ],
  "budget_error": null,
+ "detail": {
+  "meters": {
+   "meter-virtual-machines-d2-v2": {
+    "service": "Virtual Machines",
+    "meter": "D2 v2"
+   },
+   "meter-sql-database-vcore": {
+    "service": "SQL Database",
+    "meter": "vCore"
+   },
+   "meter-virtual-network-standard-ipv4-static-public-ip": {
+    "service": "Virtual Network",
+    "meter": "Standard IPv4 Static Public IP"
+   },
+   "meter-azure-data-factory-v2-cloud-data-movement": {
+    "service": "Azure Data Factory v2",
+    "meter": "Cloud Data Movement"
+   },
+   "meter-log-analytics-analytics-logs-data-ingestion": {
+    "service": "Log Analytics",
+    "meter": "Analytics Logs Data Ingestion"
+   },
+   "meter-storage-hot-lrs-data-stored": {
+    "service": "Storage",
+    "meter": "Hot LRS Data Stored"
+   },
+   "meter-azure-cosmos-db-reserved-100-ru-s": {
+    "service": "Azure Cosmos DB",
+    "meter": "Reserved 100 RU/s"
+   },
+   "meter-azure-app-service-s1-app": {
+    "service": "Azure App Service",
+    "meter": "S1 App"
+   },
+   "meter-bandwidth-standard-data-transfer-out": {
+    "service": "Bandwidth",
+    "meter": "Standard Data Transfer Out"
+   },
+   "meter-key-vault-operations": {
+    "service": "Key Vault",
+    "meter": "Operations"
+   },
+   "meter-key-vault-secret-operations": {
+    "service": "Key Vault",
+    "meter": "Secret Operations"
+   },
+   "meter-key-vault-certificate-operations": {
+    "service": "Key Vault",
+    "meter": "Certificate Operations"
+   }
+  },
+  "rows": [
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1",
+     "meter-virtual-machines-d2-v2"
+    ],
+    "d": [
+     70,
+     70
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.sql/servers/sql1/databases/orders",
+     "meter-sql-database-vcore"
+    ],
+    "d": [
+     140,
+     140
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net/providers/microsoft.network/publicipaddresses/pip-old",
+     "meter-virtual-network-standard-ipv4-static-public-ip"
+    ],
+    "d": [
+     8.4,
+     8.4
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.datafactory/factories/adf1",
+     "meter-azure-data-factory-v2-cloud-data-movement"
+    ],
+    "d": [
+     7,
+     156
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon/providers/microsoft.operationalinsights/workspaces/log1",
+     "meter-log-analytics-analytics-logs-data-ingestion"
+    ],
+    "d": [
+     56,
+     105
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.storage/storageaccounts/st1",
+     "meter-storage-hot-lrs-data-stored"
+    ],
+    "d": [
+     56,
+     14
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.documentdb/databaseaccounts/cos1",
+     "meter-azure-cosmos-db-reserved-100-ru-s"
+    ],
+    "d": [
+     0,
+     -40
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/serverfarms/asp1",
+     "meter-azure-app-service-s1-app"
+    ],
+    "d": [
+     49,
+     49
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/sites/app1",
+     "meter-bandwidth-standard-data-transfer-out"
+    ],
+    "d": [
+     3,
+     3.5
+    ]
+   },
+   {
+    "k": [
+     "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv1",
+     "meter-key-vault-operations"
+    ],
+    "d": [
+     0.007,
+     0.007
+    ]
+   }
+  ]
+ },
+ "detail_note": null,
  "mixed_currencies": [
   "EUR",
   "USD"

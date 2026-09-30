@@ -1,6 +1,6 @@
 // Fake data, no Azure needed: a demo bill, four subscriptions and a few stories worth finding.
 import { accumulate, pack, sum } from "./pack";
-import type { AdvisorRec, Budget, CostData, Forecast, GraphFinding, ViewData, ViewKey } from "./types";
+import type { AdvisorRec, Budget, CostData, Detail, Forecast, GraphFinding, ViewData, ViewKey } from "./types";
 import { addDays, daysBetween, lastFullDay, localToday, monthEnd } from "./types";
 import { groupKey, VIEWS } from "../azure/costs";
 
@@ -134,6 +134,14 @@ export function demo(days: number, today: string = localToday()): CostData {
   const rows: Record<Exclude<ViewKey, "type">, Map<string, number[]>> =
     { service: new Map(), subscription: new Map(), region: new Map(), resource: new Map(), tag: new Map() };
   const names: Record<string, Record<string, string>> = { service: {}, subscription: { ...DEMO_SUBS }, region: {}, resource: {} };
+  // the detail: what each resource spent on each meter, per period (drilling from anything into anything reads it)
+  const detail = new Map<string, number[]>(), meters: Detail["meters"] = {};
+  const toDetail = (service: string, meter: string, rid: string, daily: (i: number) => number) => {
+    const id = `meter-${service}-${meter}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    meters[id] = { service, meter };
+    const acc = accumulate(detail, [rid.toLowerCase(), id], 2);
+    for (let i = 0; i < n; i++) acc[i < days ? 0 : 1] += daily(i);
+  };
   const keysFor = (service: string, sub: string, region: string, gkey: string, rid: string, rg: string): [Exclude<ViewKey, "type">, [string, string]][] =>
     [["subscription", [sub, service]], ["region", [region, service]], ["resource", [gkey, rid]], ["tag", [demoEnv(sub, rg), service]]];
 
@@ -156,6 +164,7 @@ export function demo(days: number, today: string = localToday()): CostData {
         const acc = accumulate(rows[view], key, n);
         daily.forEach((v, i) => (acc[i] += v));
       }
+      toDetail(service, meter, rid, i => daily[i]);
     }
   }
   const oneDay = (service: string, meter: string, sub: string, region: string, rg: string, path: string, day: number, amount: number) => {
@@ -163,6 +172,7 @@ export function demo(days: number, today: string = localToday()): CostData {
     for (const [view, key] of [["service", [service, meter]], ...keysFor(service, sub, region, gkey, rid, rg)] as [Exclude<ViewKey, "type">, [string, string]][]) {
       accumulate(rows[view], key, n)[day] += amount;
     }
+    toDetail(service, meter, rid, i => (i === day ? amount : 0));
   };
   // a cancelled Cosmos DB reservation refunded as one negative day: no box can show it, so the header notes it
   oneDay("Azure Cosmos DB", "Reserved 100 RU/s", P, "us east", "rg-data-prod", "microsoft.documentdb/databaseaccounts/cosmos-catalog",
@@ -180,5 +190,6 @@ export function demo(days: number, today: string = localToday()): CostData {
     resource_fallback: [], advisor: demoAdvisor(), advisor_error: null, budgets: demoBudgets(), budget_error: null,
     forecast: demoForecast(views, dates, today), forecast_note: null,
     graph: demoGraph(), graph_error: null, demo: true,
+    detail: { meters, rows: pack(detail) }, detail_note: null,
   };
 }

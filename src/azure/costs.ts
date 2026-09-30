@@ -288,11 +288,13 @@ export interface FetchOptions {
 }
 
 /** What a run is still reading, for the page to say while it shows what's already there. */
-export type Pending = "resources" | "regions" | "tags" | "forecast" | "budgets" | "Advisor" | "idle checks";
+export type Pending = "resources" | "regions" | "tags" | "forecast" | "detail" | "budgets" | "Advisor" | "idle checks";
 export type OnUpdate = (data: CostData, pending: Pending[]) => void;
 
 // Cost Management throttles per subscription and per tenant: a few at once is faster, many at once only waits
 const CONCURRENCY = 3;
+// resources x meters, as two period totals: past this many pages a query's detail is left out (the views still work)
+const DETAIL_PAGES = 40;
 
 /** Run `fn` over `items`, at most `n` at a time. The first failure stops new work and is thrown. */
 async function pool<T>(items: T[], n: number, fn: (item: T, i: number) => Promise<void>): Promise<void> {
@@ -328,10 +330,13 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const forecasts: ({ f: ForecastResult | null; why: string } | undefined)[] = new Array(n);
   const recs: AdvisorRec[][] = targets.map(() => []);
   const budgets: Budget[][] = targets.map(() => []);
+  const detailRaw: RawEntry[][] = targets.map(() => []); // [[resource id, meter id], 0 previous | 1 current, cost, USD]
+  const meterNames = targets.map(() => new Map<string, { service: string; meter: string }>());
+  let detailNote: string | null = null;
   let budgetError: string | null = null;
   const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
   const settled = new Set<string>(); // targets whose columns a query has already worked with
-  const done = { resources: false, regions: false, budgets: false, advisor: false, graph: false };
+  const done = { resources: false, regions: false, detail: false, budgets: false, advisor: false, graph: false };
   let tag: string | null = null, tagDone = false, advisorError: string | null = null;
   let findings: GraphFinding[] | null = null, graphError: string | null = null;
 
@@ -353,11 +358,12 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   };
 
   /** `day` is set for period totals, which have no UsageDate: they land on their period's first day. */
+  const amounts = (r: QueryRow): [number, number | null | undefined] =>
+    ["Cost" in r ? r.Cost || 0 : r.PreTaxCost || 0, "CostUSD" in r ? r.CostUSD : r.PreTaxCostUSD];
   const add = (i: number, view: FetchedView, key: [string, string], r: QueryRow, day?: number) => {
     const d = day ?? index.get(usageDay(r.UsageDate));
     if (d === undefined) return;
-    const cost = "Cost" in r ? r.Cost : r.PreTaxCost, costUsd = "CostUSD" in r ? r.CostUSD : r.PreTaxCostUSD;
-    raw[i][view].push([key, d, cost || 0, costUsd]);
+    raw[i][view].push([key, d, ...amounts(r)]);
   };
 
   // ---- the stages
@@ -432,6 +438,34 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
     }
   };
 
+  /** What each resource spent on each meter, per period, and what the meters are: drilling from anything into
+   * anything filters these. Too big (or refused) leaves the detail out with a note; the views don't need it. */
+  const detail = async (t: Target, i: number) => {
+    log(`  ${t.name}: detail ...`);
+    const whole = { granularity: null, maxPages: DETAIL_PAGES } as const;
+    const meter = (id: unknown) => {
+      const key = String(id ?? "").toLowerCase();
+      let m = meterNames[i].get(key);
+      if (!m) meterNames[i].set(key, (m = { service: "(no service)", meter: "(no meter)" }));
+      return m;
+    };
+    try {
+      for (const r of await run(t, ["MeterId", "Meter"], whole)) meter(r.MeterId).meter = r.Meter || "(no meter)";
+      for (const r of await run(t, ["MeterId", "ServiceName"], whole)) meter(r.MeterId).service = serviceOf(r);
+      for (const [slot, [start, end]] of [[0, p.prev], [1, p.cur]] as const) {
+        for (const r of await run(t, ["ResourceId", "MeterId"], { ...whole, start, end })) {
+          const rid = (r.ResourceId || "").toLowerCase() || `/subscriptions/${t.id.toLowerCase()}`; // charged to no resource
+          const [cost, costUsd] = amounts(r);
+          detailRaw[i].push([[rid, String(r.MeterId ?? "").toLowerCase()], slot, cost, costUsd]);
+        }
+      }
+    } catch (e) {
+      if (!(e instanceof TooManyPages) && !(e instanceof AzureError)) throw e;
+      detailRaw[i] = [];
+      detailNote = e instanceof TooManyPages ? "too many resources and meters to read the detail" : `the detail couldn't be read (HTTP ${e.status})`;
+      log(`  ${t.name}: skipped the detail (${e.message})`);
+    }
+  };
   const budget = async (t: Target, i: number) => {
     log(`  ${t.name}: budgets ...`);
     try {
@@ -491,6 +525,11 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
       subscriptions: known, resource_fallback: targets.filter((_, i) => fallback[i]).map(t => t.name),
       advisor: advisorList, advisor_error: advisorError,
       budgets: withAdvisor.length && done.budgets ? budgets.flat() : null, budget_error: budgetError,
+      detail: done.detail && !detailNote ? {
+        meters: Object.fromEntries(meterNames.flatMap(m => [...m])), // in target order: the same bill gives the same data
+        rows: fold(detailRaw.flat(), 2, usd),
+      } : null,
+      detail_note: detailNote,
       mixed_currencies: mixed, usd_rate: usdRate,
       forecast, forecast_note: forecastNote,
       graph: findings, graph_error: graphError, demo: false,
@@ -500,6 +539,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const pendingNow = (): Pending[] => [
     ...(done.resources ? [] : ["resources" as const]),
     ...(done.regions ? [] : ["regions" as const, ...(tag || !tagDone ? ["tags" as const] : []), "forecast" as const]),
+    ...(!done.detail ? ["detail" as const] : []),
     ...(withAdvisor.length && !done.budgets ? ["budgets" as const] : []),
     ...(o.advisor && withAdvisor.length && !done.advisor ? ["Advisor" as const] : []),
     ...(o.graph && withAdvisor.length && !done.graph ? ["idle checks" as const] : []),
@@ -518,13 +558,14 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   tagDone = true;
   update();
   await Promise.all([
+    pool(targets, concurrency, detail),
     withAdvisor.length ? pool(withAdvisor, concurrency, t => budget(t, targets.indexOf(t))) : undefined,
     o.advisor && withAdvisor.length ? pool(withAdvisor, concurrency, (t, _) => advisor(t, targets.indexOf(t))) : undefined,
     o.graph && withAdvisor.length // Resource Graph, like Advisor, reads subscriptions
       ? (log("  Resource Graph ..."), graphFindings(az, withAdvisor, log).then(([f, err]) => { findings = f; graphError = err; }))
       : undefined,
   ]);
-  done.budgets = done.advisor = done.graph = true;
+  done.detail = done.budgets = done.advisor = done.graph = true;
 
   const data = assemble();
   if (data.mixed_currencies) log("  warning: these subscriptions bill in different currencies and Azure won't convert them; totals mix currencies");

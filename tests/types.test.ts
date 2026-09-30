@@ -39,7 +39,7 @@ describe("the type view", () => {
 
   it("adds up to the same bill as the resource view", () => {
     expect(M.tree("type", "", false).cur).toBeCloseTo(M.tree("resource", "", false).cur, 6);
-    const csv = toCsv(M, { view: "type", group: null, filter: "" }).replace(/^﻿/, "").trimEnd().split("\r\n").slice(1);
+    const csv = toCsv(M, { view: "type", group: null, filter: "" }).replace(/^\ufeff/, "").trimEnd().split("\r\n").slice(1);
     expect(csv.reduce((s, r) => s + Number(r.match(/,(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),/)![1]), 0)).toBeCloseTo(M.grand, 0);
   });
 

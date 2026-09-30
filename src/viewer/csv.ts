@@ -1,7 +1,8 @@
 // What the page shows, as a spreadsheet: one row per box of the current view (or of the opened group), with its
 // numbers for both periods. For chargeback sheets and pasting into reports, so it adds up to the bill: credits and
 // refunds (which the map can't draw) and what went to zero are rows too.
-import type { ViewKey } from "../core/types";
+import type { Dim, ViewKey } from "../core/types";
+import type { DD, LevelRow } from "./drill";
 import type { Model } from "./model";
 
 const round2 = (v: number) => Math.round(v * 100) / 100; // a number, so "-12.5" stays a number, not guarded text
@@ -44,16 +45,33 @@ export function toCsv(M: Model, s: CsvScope): string {
   const lines = rows.map(r => [r.ga, r.g, r.lb, r.b, round2(r.cur), round2(r.prev), round2(r.cur - r.prev),
     r.prev >= 0.01 ? round2(100 * (r.cur - r.prev) / r.prev) : null, M.grand ? round2(100 * r.cur / M.grand) : null,
     round2(r.cur / days), round2(r.cur / days * 30.4), currency]);
-  // "﻿": Excel reads the file as UTF-8 (names with accents, the en dash in the period) only with the mark
-  return "﻿" + [header, ...lines].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  // "\ufeff": Excel reads the file as UTF-8 (names with accents, the en dash in the period) only with the mark
+  return "\ufeff" + [header, ...lines].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+/** A drilled level as a spreadsheet: its rows (credits included) with both periods' totals. */
+export function levelCsv(M: Model, path: string, dim: Dim, rows: LevelRow[], dd: DD): string {
+  const currency = M.DATA.mixed_currencies ? "mixed" : M.DATA.currency, days = M.DAYS;
+  const header = ["path", M.DIM[dim].one, `${M.DIM[dim].one} id`, `current (${M.period()})`, "previous", "change", "change %",
+    "share of bill %", "per day", "monthly pace", "currency"];
+  const lines = rows.filter(r => Math.abs(r.cur) >= 0.005 || Math.abs(r.prev) >= 0.005).map(r => [path, M.label(dd, r.key), r.key.replace("\u0000", " / "),
+    round2(r.cur), round2(r.prev), round2(r.cur - r.prev), r.prev >= 0.01 ? round2(100 * (r.cur - r.prev) / r.prev) : null,
+    M.grand ? round2(100 * r.cur / M.grand) : null, round2(r.cur / days), round2(r.cur / days * 30.4), currency]);
+  return "\ufeff" + [header, ...lines].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+function save(M: Model, text: string, name: string) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${name}-${M.DATA.days[M.SPLIT]}_${M.DATA.days[M.N - 1]}.csv` });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const slug = (s: string) => s.replace(/[^\w.-]+/g, "_").slice(0, 40);
+
+export function downloadLevelCsv(M: Model, path: string, dim: Dim, rows: LevelRow[], dd: DD) {
+  save(M, levelCsv(M, path, dim, rows, dd), `azcost-${slug(path)}-by-${dd}`);
 }
 
 export function downloadCsv(M: Model, s: CsvScope, groupName?: string) {
-  const blob = new Blob([toCsv(M, s)], { type: "text/csv;charset=utf-8" });
-  const where = groupName ? "-" + groupName.replace(/[^\w.-]+/g, "_").slice(0, 40) : "";
-  const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(blob), download: `azcost-${s.view}${where}-${M.DATA.days[M.SPLIT]}_${M.DATA.days[M.N - 1]}.csv`,
-  });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  save(M, toCsv(M, s), `azcost-${s.view}${groupName ? "-" + slug(groupName) : ""}`);
 }

@@ -1,6 +1,7 @@
 // Everything the viewer derives from one run's data: trees, names, colors, formatting and the side panel's lists.
 import type { Hint, LinkedTip, Summary } from "../core/summarize";
 import { typeLabel, withTypeView } from "../core/resourceTypes";
+import { DD_DIM, level, type DD, type Drill, type LevelRow } from "./drill";
 import type { AdvisorRec, Budget, CostData, Dim, ViewKey } from "../core/types";
 
 export const VIEW_KEYS: ViewKey[] = ["service", "subscription", "region", "resource", "type", "tag"];
@@ -23,6 +24,7 @@ export interface TNode {
   hit: boolean;
   more?: number; // a "+N more" box: how many it holds
   rest?: TNode[];
+  detail?: boolean; // a level drilled past a view's two: from the detail, totals per period and no daily series
 }
 
 export const esc = (s: unknown) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
@@ -132,8 +134,8 @@ export function createModel(data: CostData, EXPORT: Summary) {
   function category(n: TNode, view: ViewKey): string | null {
     if (n.more) return null; // a mix of whatever was too small to draw
     const [A, B] = DATA.views[view]!.dims;
-    const dim = n.kind === "leaf" ? B : A;
-    if (dim === "Meter") return match(METER_RULES, n.key) || svcCat(n.parent!.key);
+    const dim = n.detail ? n.dim : n.kind === "leaf" ? B : A;
+    if (dim === "Meter") return match(METER_RULES, n.name) || svcCat(n.detail ? n.key.split("\u0000")[0] : n.parent!.key);
     if (dim === "ServiceName") return svcCat(n.key);
     if (dim === "ResourceId") return n.key.startsWith("/") ? match(PROVIDER_RULES, n.key) || "other" : svcCat(n.key);
     if (dim === "ResourceType") return match(PROVIDER_RULES, `/providers/${n.key}/`) || "other";
@@ -203,6 +205,52 @@ export function createModel(data: CostData, EXPORT: Summary) {
       trees.set(key, t);
     }
     return t;
+  }
+
+  // ---------- drilling past a view's two levels, into the detail
+  const DETAIL = DATA.detail ?? null;
+  const DRILLABLE = new Set<ViewKey>(["service", "subscription", "resource", "type"]); // regions and tag values aren't in the detail
+  const SUB_NAMES = Object.fromEntries((DATA.subscriptions || []).map(s => [s.id.toLowerCase(), s.name]));
+  const RESOURCE_GROUP_NAMES = DATA.views.resource?.names ?? {};
+  const bare = (key: string) => /^\/subscriptions\/[^/]+$/.test(key); // a charge on no resource (or no resource group)
+  function label(dd: DD, key: string): string {
+    switch (dd) {
+      case "service": return shortSvc(key);
+      case "meter": return key.split("\u0000")[1] ?? key;
+      case "resource": return bare(key) ? "(no resource)" : lastSeg(key);
+      case "group": return RESOURCE_GROUP_NAMES[key] ?? (bare(key) ? "(no resource group)" : lastSeg(key));
+      case "type": return typeLabel(key);
+      case "subscription": return SUB_NAMES[key] ?? key;
+    }
+  }
+  const drills = new Map<string, { base: TNode; all: LevelRow[] }>();
+  /** A drilled level as a node the map, the table and the side panel can show: its boxes are the path's facts grouped by
+   * the breakdown. `all` has every row, credits too, for the CSV. */
+  function drillLevel(d: Drill, filter: string, collapse: boolean): { base: TNode; all: LevelRow[] } {
+    const cacheKey = JSON.stringify([d, filter, filter ? collapse : false]);
+    const hit = drills.get(cacheKey);
+    if (hit) return hit;
+    const all = DETAIL ? level(DETAIL, d.path, d.by) : [], q = filter.toLowerCase(), last = d.path[d.path.length - 1];
+    const names = d.path.map(s => label(s.dim, s.key));
+    const base: TNode = { kind: "group", key: "\u0000drill", name: names[names.length - 1], full: names.join(" / "), dim: DD_DIM[last.dim],
+      parent: null, children: [], gone: [], daily: new Float64Array(N), cur: 0, prev: 0, credits: 0, size: null, hit: false, detail: true };
+    for (const r of all) {
+      const name = label(d.by, r.key), hitRow = !q || `${r.key} ${name}`.toLowerCase().includes(q);
+      base.cur += r.cur; base.prev += r.prev;
+      if (r.cur < 0) base.credits += r.cur;
+      if (!hitRow && collapse) continue;
+      const n: TNode = { kind: "leaf", key: r.key, name, full: r.key.startsWith("/") ? r.key : `${base.full} / ${name}`, dim: DD_DIM[d.by],
+        parent: base, children: null, gone: [], daily: new Float64Array(N), cur: r.cur, prev: r.prev, credits: Math.min(r.cur, 0),
+        size: null, hit: hitRow, detail: true };
+      if (r.cur >= 0.005) base.children!.push(n);
+      else if (r.prev >= 0.005) base.gone.push(n); // spent before, nothing now: no box, still in the table
+    }
+    base.hit = base.children!.some(c => c.hit);
+    base.size = base.children!.reduce((s, c) => s + c.cur, 0);
+    const out = { base, all };
+    if (drills.size > 20) drills.delete(drills.keys().next().value!);
+    drills.set(cacheKey, out);
+    return out;
   }
 
   const whole = tree("service", "", false), grand = whole.cur; // shares are always of the whole bill, even when filtered
@@ -335,7 +383,7 @@ export function createModel(data: CostData, EXPORT: Summary) {
   const grainWord = (b: Budget) => GRAIN_WORD[b.time_grain] ?? b.time_grain;
 
   return {
-    DATA, EXPORT, BUDGETS, budgetState, budgetsOf, grainWord, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
+    DATA, EXPORT, BUDGETS, budgetState, budgetsOf, grainWord, DETAIL, DRILLABLE, drillLevel, label, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
     money, bigMoney, period, category, color, tree, credits, totalsOnly, portalHref,
     tipDetail, tipLine, biggestDrops, worthALook, marks, isTodo,
   };

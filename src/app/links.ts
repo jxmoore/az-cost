@@ -3,6 +3,7 @@
 // carries no costs and no token. The run's settings travel in the query string, the place too:
 //   /?subs=<id>,<id>&period=mtd&view=resource&group=<resource group id>&item=<resource id>
 import type { PeriodSpec } from "../core/period";
+import { DDS, type DD, type Drill, type Step } from "../viewer/drill";
 import type { Metric, ViewKey } from "../core/types";
 
 /** What a run read: enough to read it again. */
@@ -19,7 +20,8 @@ export interface RunSpec {
 export interface Place {
   view: ViewKey;
   group: string | null;
-  item: string | null; // a box in the group, which opens the group
+  item: string | null; // a box in the group, which opens the group (in a drilled level: a box of that level)
+  drill?: Drill; // past the group's boxes: the path into the detail, and its breakdown
 }
 
 const VIEWS: ViewKey[] = ["service", "subscription", "region", "resource", "type", "tag"];
@@ -53,6 +55,7 @@ export function buildLink(base: string, run: RunSpec, place: Place): string {
   q.set("view", place.view);
   if (place.group !== null) q.set("group", place.group);
   if (place.item !== null) q.set("item", place.item);
+  if (place.drill) q.set("drill", JSON.stringify({ path: place.drill.path.map(s => [s.dim, s.key]), by: place.drill.by }));
   return `${base}?${q}`;
 }
 
@@ -70,8 +73,21 @@ export function parseLink(search: string): { run: RunSpec; place: Place } | null
       metric: q.get("metric") === "AmortizedCost" ? "AmortizedCost" : "ActualCost",
       tag: q.get("tag"),
     },
-    place: { view: view && VIEWS.includes(view) ? view : "service", group: q.get("group"), item: q.get("item") },
+    place: { view: view && VIEWS.includes(view) ? view : "service", group: q.get("group"), item: q.get("item"), ...parseDrill(q.get("drill")) },
   };
+}
+
+/** A drill from a link: checked piece by piece, since anyone can edit a URL. */
+function parseDrill(s: string | null): { drill?: Drill } {
+  if (!s) return {};
+  try {
+    const d = JSON.parse(s), ok = (x: unknown): x is DD => DDS.includes(x as DD);
+    const path: Step[] = Array.isArray(d.path) ? d.path.filter((p: unknown) => Array.isArray(p) && ok(p[0]) && typeof p[1] === "string")
+      .map((p: [DD, string]) => ({ dim: p[0], key: p[1] })) : [];
+    return path.length && ok(d.by) ? { drill: { path, by: d.by } } : {};
+  } catch {
+    return {};
+  }
 }
 
 /** The subscription a group or box belongs to, when there's exactly one: a link to it needs to read only that one. */

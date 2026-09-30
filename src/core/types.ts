@@ -50,6 +50,14 @@ export interface Budget {
 
 export interface Forecast { month: string; actual: number; forecast: number; total: number }
 
+/** The finest grain a run reads: what each resource spent on each meter, as a total per period (no daily series:
+ * resources x meters x days would be millions of rows). A resource id implies its subscription, resource group and
+ * type, and a meter its service, so drilling from anything into anything filters these rows. */
+export interface Detail {
+  meters: Record<string, { service: string; meter: string }>; // meter id (lowercase) -> its service and name
+  rows: PackedRow[]; // k: [resource id (lowercase; "/subscriptions/<id>" for charges on no resource), meter id]; d: [previous, current]
+}
+
 export interface CostData {
   days: string[]; // ISO dates, previous period then current period (they needn't touch: month to date)
   split: number; // index of the current period's first day
@@ -68,6 +76,8 @@ export interface CostData {
   forecast_note: string | null;
   graph: GraphFinding[] | null;
   graph_error: string | null;
+  detail?: Detail | null; // null: not read (yet), or too big to read (detail_note says)
+  detail_note?: string | null;
   demo: boolean;
   generated?: string;
   metric?: Metric;

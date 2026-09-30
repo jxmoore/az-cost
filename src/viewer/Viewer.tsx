@@ -9,14 +9,15 @@ import {
   type Model, type TNode,
 } from "./model";
 import { buildLink, subscriptionOf, type Place } from "../app/links";
-import { downloadCsv } from "./csv";
+import { downloadCsv, downloadLevelCsv } from "./csv";
+import { defaultNext, DD_DIM, DD_WORD, DIM_DD, options, stepFor, type DD, type Drill, type Step } from "./drill";
 import { SharePanel } from "./Share";
 import { Table } from "./Table";
 import "./viewer.css";
 
 /** The selection, as something that survives a rebuild: keys into the tree, the "+N more" box of a group, or a node
  * that isn't on the map at all (a meter that went to zero, opened from Biggest drops). */
-type Sel = null | { k: [string, string | null] } | { more: string } | { node: TNode };
+type Sel = null | { k: [string, string | null] } | { more: string } | { node: TNode } | { d: string }; // d: a box of a drilled level
 
 interface VS {
   view: ViewKey;
@@ -28,6 +29,7 @@ interface VS {
   sel: Sel;
   expanded: { hints: boolean; recs: boolean };
   table: boolean; // the current level as a table instead of the map
+  drill: Drill | null; // past the opened group's boxes: a path into the detail, and what its last step is broken down by
 }
 
 const narrowedOf = (s: VS) => !!s.filter && s.collapsed;
@@ -57,7 +59,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     try { hashView = decodeURIComponent(location.hash.slice(1)); } catch { /* a malformed hash opens the default view */ }
     return {
       view: VIEW_KEYS.includes(hashView as ViewKey) && DATA.views[hashView as ViewKey] ? (hashView as ViewKey) : "service",
-      change: false, filter: "", collapsed: false, more: 0, zoom: null, sel: null, expanded: { hints: false, recs: false }, table: false,
+      change: false, filter: "", collapsed: false, more: 0, zoom: null, sel: null, expanded: { hints: false, recs: false }, table: false, drill: null,
     };
   });
   const [filterText, setFilterText] = useState("");
@@ -70,21 +72,25 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   const root = M.tree(st.view, st.filter, narrowed);
   const zoomNode = st.zoom === null ? undefined : root.children!.find(g => g.key === st.zoom);
   const many = (n: TNode) => M.DIM[n.dim!].many;
-  const lay = useMemo(() => layout(root, zoomNode, st.more, size.W, size.H, many),
+  // a drilled level replaces the opened group's boxes; it needs the detail, and the group it starts from
+  const drilled = st.drill && M.DETAIL && zoomNode ? M.drillLevel(st.drill, st.filter, narrowed) : null;
+  const shown = drilled?.base ?? zoomNode; // what the map draws inside: the opened group, or the drilled level
+  const lay = useMemo(() => layout(root, shown, st.more, size.W, size.H, many),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [root, zoomNode, st.more, size.W, size.H]);
+    [root, shown, st.more, size.W, size.H]);
   const drawn = lay.cells.map(c => c.n);
   const selNode: TNode | null = !st.sel ? null
     : "k" in st.sel ? findNode(root, st.sel.k)
     : "more" in st.sel ? (drawn.find(n => n.more && n.parent?.key === (st.sel as { more: string }).more) ?? null)
+    : "d" in st.sel ? (drilled ? [...drilled.base.children!, ...drilled.base.gone].find(n => n.key === (st.sel as { d: string }).d) ?? null : null)
     : st.sel.node;
 
   // ---------- state changes. Back and Forward: a view change, a zoom and a jump are steps; selecting only
   // updates the step you're on
   const stRef = useRef(st);
   stRef.current = st;
-  const live = useRef({ root, zoomNode, lay, selNode });
-  live.current = { root, zoomNode, lay, selNode };
+  const live = useRef({ root, zoomNode, lay, selNode, shown });
+  live.current = { root, zoomNode, lay, selNode, shown };
   const pendingAnim = useRef<{ rect?: Rect; group?: string; opening: boolean } | null>(null);
 
   const treeOf = (s: VS) => M.tree(s.view, s.filter, narrowedOf(s));
@@ -92,7 +98,8 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     stRef.current = next;
     setSt(next);
     if (hist) {
-      const h = { view: next.view, zoom: next.zoom, more: next.more, sel: next.sel && "k" in next.sel ? next.sel.k : null };
+      const h = { view: next.view, zoom: next.zoom, more: next.more, sel: next.sel && "k" in next.sel ? next.sel.k : null,
+        drill: next.drill, seld: next.sel && "d" in next.sel ? next.sel.d : null };
       history[hist === "push" ? "pushState" : "replaceState"](h, "", "#" + next.view);
     }
   }
@@ -100,13 +107,14 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   function rebuilt(next: VS): VS {
     const t = treeOf(next);
     const zoom = next.zoom !== null && !t.children!.some(g => g.key === next.zoom) ? null : next.zoom;
-    const sel = next.sel && "k" in next.sel && findNode(t, next.sel.k) ? next.sel : null;
-    return { ...next, zoom, sel };
+    const sel = next.sel && (("k" in next.sel && findNode(t, next.sel.k)) || ("d" in next.sel && zoom !== null)) ? next.sel : null;
+    return { ...next, zoom, sel, drill: zoom === null ? null : next.drill };
   }
   const selOf = (n: TNode | null, t: TNode): Sel => !n || n.kind === "root" ? null
     : n.more ? { more: n.parent!.key }
+    : n.detail ? { d: n.key }
     : findNode(t, keyOf(n)) === n ? { k: keyOf(n) } : { node: n };
-  const showView = (s: VS, v: ViewKey): VS => ({ ...s, view: v, zoom: null, sel: null, more: 0 });
+  const showView = (s: VS, v: ViewKey): VS => ({ ...s, view: v, zoom: null, sel: null, more: 0, drill: null });
   const cleared = (s: VS): VS => ({ ...s, filter: "", collapsed: false });
 
   function setView(v: ViewKey) {
@@ -117,9 +125,51 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   function select(n: TNode | null) {
     commit({ ...stRef.current, sel: selOf(n, live.current.root) }, "replace");
   }
+  /** The step to drill from the opened group itself: the path a "break down by" at that level starts with. */
+  const groupStep = (s: VS): Step | null => (s.zoom === null ? null : stepFor(DATA.views[s.view]!.dims[0], s.zoom));
+  /** The view's own second level, as a breakdown: choosing it again goes back to the view's boxes (with daily series). */
+  const natural = (s: VS) => DIM_DD[DATA.views[s.view]!.dims[1]];
+  /** The drill cut back to its first `len` steps: back through what the next step was broken down by. */
+  function trimmed(s: VS, len: number): VS {
+    const path = s.drill!.path, back = path[len];
+    if (len < 1) return { ...s, drill: null, more: 0, sel: null };
+    if (len === 1 && back.dim === natural(s)) { // the view's own boxes again: select the one we came from
+      const B = DATA.views[s.view]!.dims[1], g = treeOf(s).children!.find(g => g.key === s.zoom);
+      const leaf = g?.children!.find(c => stepFor(B, c.key, g.key)?.key === back.key);
+      return { ...s, drill: null, more: 0, sel: leaf ? { k: keyOf(leaf) } : null };
+    }
+    return { ...s, drill: { path: path.slice(0, len), by: back.dim }, more: 0, sel: { d: back.key } };
+  }
+  function breakDownBy(by: DD) {
+    const s = stRef.current, g = groupStep(s);
+    if (!g) return;
+    const path = s.drill?.path ?? [g];
+    commit(path.length === 1 && by === natural(s) ? { ...s, drill: null, more: 0, sel: null } : { ...s, drill: { path, by }, more: 0, sel: null }, "push");
+  }
   function open(n: TNode | null) {
-    const s = stRef.current, { root, lay } = live.current;
+    const s = stRef.current, { root, lay, zoomNode } = live.current;
     if (n?.more && s.zoom !== null) { commit({ ...s, more: s.more + 1, sel: null }, "push"); return; } // one level into the long tail
+    // past the group's boxes: a box of the opened group, or of a drilled level, opens into the detail
+    if (n && M.DETAIL && zoomNode && (n.detail || (n.kind === "leaf" && n.parent === zoomNode && M.DRILLABLE.has(s.view)))) {
+      let path: Step[] | null = null;
+      if (n.detail && s.drill) path = [...s.drill.path, { dim: s.drill.by, key: n.key }];
+      else if (!n.detail) {
+        const [A, B] = DATA.views[s.view]!.dims, g = stepFor(A, zoomNode.key), l = stepFor(B, n.key, zoomNode.key);
+        path = g && l ? [g, l] : null;
+      }
+      let by = path && defaultNext(path);
+      // the path has nothing left to say (a VM on one meter is one number): open the box on its own instead, so
+      // Virtual Machines / D4s v5 / vm-app-01 shows everything vm-app-01 spent on
+      if (path && !by && n.detail && s.drill) {
+        path = [{ dim: s.drill.by, key: n.key }];
+        by = defaultNext(path);
+      }
+      if (!path || !by) return;
+      const cell = lay.cells.find(c => c.n === n);
+      pendingAnim.current = { rect: cell && boxOf(cell), opening: true };
+      commit({ ...s, drill: { path, by }, more: 0, sel: null }, "push");
+      return;
+    }
     const g = n?.kind === "leaf" ? n.parent : n;
     // already inside, or a group that isn't on this map (a drop whose service went to zero): nothing to open
     if (g?.kind !== "group" || s.zoom === g.key || !root.children!.includes(g)) return;
@@ -130,6 +180,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   function up(animate = true) {
     const s = stRef.current, { zoomNode } = live.current;
     if (s.more > 0) { commit({ ...s, more: s.more - 1, sel: null }, "push"); return; }
+    if (s.drill) { commit(trimmed(s, s.drill.path.length - 1), "push"); return; }
     if (s.zoom !== null) {
       if (animate && zoomNode) pendingAnim.current = { group: zoomNode.key, opening: false }; // its box in the top-level map
       commit({ ...s, zoom: null, more: 0, sel: zoomNode ? { k: [zoomNode.key, null] } : null }, "push");
@@ -140,7 +191,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     const { lay, selNode, zoomNode, root } = live.current, drawn = lay.cells.map(c => c.n);
     let peers = drawn.filter(n => n.parent === selNode?.parent);
     // the selection isn't drawn (the group just opened, or a drop that went to zero): walk what the map shows
-    if (!peers.length) peers = drawn.filter(n => n.parent === (zoomNode || root));
+    if (!peers.length) peers = drawn.filter(n => n.parent === (live.current.shown || zoomNode || root));
     if (!peers.length) return false;
     const i = selNode ? peers.indexOf(selNode) : -1, j = i < 0 ? 0 : i + dir;
     if (j < 0 || j >= peers.length) return false; // past the end: the caller lets Tab move on
@@ -228,6 +279,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     const t = treeOf(s), z = h.zoom ?? null; // "" is a real zoom key (no region, untagged)
     if (z !== null && t.children!.some(g => g.key === z)) s = { ...s, zoom: z, more: h.more ?? 0 };
     s = { ...s, sel: findNode(t, h.sel) ? { k: h.sel } : null };
+    if (h.drill && s.zoom !== null) s = { ...s, drill: h.drill, sel: h.seld ? { d: h.seld } : null };
     commit(s, null);
   }
   const handlers = useRef({ onKey, onPop });
@@ -273,29 +325,38 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
 
   // a shared link's place: shown as soon as its view is read (the run may still be reading it)
   const pendingPlace = useRef(initial);
+  const detailComing = loading.includes("detail");
   useEffect(() => {
     const p = pendingPlace.current;
     if (!p || !DATA.views[p.view]) return;
+    if (p.drill && !M.DETAIL && detailComing) return; // a drilled place waits for the detail
     pendingPlace.current = null;
     let s = showView(cleared(stRef.current), p.view);
     const g = p.group === null ? undefined : treeOf(s).children!.find(g => g.key === p.group);
-    if (g) {
+    if (g && p.drill && M.DETAIL) s = { ...s, zoom: g.key, drill: p.drill, sel: p.item === null ? null : { d: p.item } };
+    else if (g) {
       const leaf = p.item === null ? undefined : g.children!.find(c => c.key === p.item);
       s = { ...s, zoom: g.key, sel: { k: leaf ? keyOf(leaf) : keyOf(g) } };
     }
     clearFilterInput();
     commit(s, "replace");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [M]);
+  }, [M, detailComing]);
 
   // ---------- sharing: where the page is now, as a link
   const [sharing, setSharing] = useState(false);
-  const place: Place = {
+  const place: Place = drilled ? { view: st.view, group: st.zoom, item: selNode?.detail ? selNode.key : null, drill: st.drill! } : {
     view: st.view,
     group: zoomNode?.key ?? (selNode?.kind === "group" ? selNode.key : selNode?.kind === "leaf" && !selNode.more && selNode.parent ? selNode.parent.key : null),
     item: selNode?.kind === "leaf" && !selNode.more ? selNode.key : null,
   };
-  const shareWhat = selNode && selNode.kind !== "root" && !selNode.more ? selNode.name : zoomNode ? zoomNode.name : "the whole bill";
+  const shareWhat = selNode && selNode.kind !== "root" && !selNode.more ? selNode.name : shown ? shown.name : "the whole bill";
+  // a drilled place belongs to one subscription when a step (or the selection) is a resource, group or subscription
+  const shareSub = drilled
+    ? [...st.drill!.path, ...(place.item !== null ? [{ dim: st.drill!.by, key: place.item }] : [])].map(s =>
+      s.dim === "subscription" ? s.key : s.dim === "resource" || s.dim === "group" ? (/^\/subscriptions\/([0-9a-f-]{36})/i.exec(s.key)?.[1]?.toLowerCase() ?? null) : null,
+    ).find(Boolean) ?? null
+    : subscriptionOf(place.view, place.group, place.item);
 
   function exportJSON() {
     const blob = new Blob([JSON.stringify(M.EXPORT, null, 2)], { type: "application/json" });
@@ -342,19 +403,35 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     return <div key={`${c.type}\u0000${n.parent?.key}\u0000${n.key}`} data-i={i} className={cls} style={style}>{body}</div>;
   });
 
-  const base = zoomNode || root;
+  const base = shown || root;
   const v = DATA.views[st.view]!, [A, B] = v.dims;
 
   // ---------- header and the line under it (a crumb jump doesn't animate)
-  const crumbUp = () => { commit({ ...stRef.current, more: 0 }, null); up(false); };
-  const crumbs = base === root
+  const crumbUp = () => { commit({ ...stRef.current, more: 0, drill: null }, null); up(false); };
+  // "break down by": at an opened group of a view the detail can follow, and at every drilled level
+  const byStep = groupStep(st), byOptions = byStep && M.DRILLABLE.has(st.view) ? options(st.drill?.path ?? [byStep]) : [];
+  const byNow: DD | undefined = st.drill?.by ?? DIM_DD[B];
+  const picker = zoomNode && byOptions.length > 0 && (
+    <select className="by" value={M.DETAIL ? byNow : ""} disabled={!M.DETAIL} onChange={e => breakDownBy(e.target.value as DD)}
+      title={M.DETAIL ? "break this down by…" : DATA.detail_note ?? (detailComing ? "the detail is still loading" : "no detail for this run")}>
+      {M.DETAIL ? byOptions.map(d => <option key={d} value={d}>by {DD_WORD[d]}</option>)
+        : <option value="">{detailComing ? "detail loading…" : "no detail"}</option>}
+    </select>);
+  const crumbs = drilled
+    ? <><a onClick={crumbUp}>all {M.DIM[A].many}</a>
+      {st.drill!.path.map((s, i, path) => <span key={i} className="step"><span>/</span>{i < path.length - 1
+        ? <a onClick={() => commit(trimmed(stRef.current, i + 1), "push")}>{M.label(s.dim, s.key)}</a>
+        : <span className="cur">{M.label(s.dim, s.key)}</span>}</span>)}
+      {st.more > 0 && <><span>/</span><span className="cur">{lay.moreCount} smaller</span></>}
+      {picker}</>
+    : base === root
     ? <span className="cur">all {M.DIM[A].many}</span>
     : st.more
       ? <><a onClick={crumbUp}>all {M.DIM[A].many}</a><span>/</span>
         <a onClick={() => commit({ ...stRef.current, more: 0, sel: null }, "push")}>{base.name}</a><span>/</span>
         <span className="cur">{lay.moreCount} smaller {M.DIM[B].many}</span></>
       : <><a onClick={crumbUp}>all {M.DIM[A].many}</a><span>/</span>
-        <span className="cur">{base.name}</span></>;
+        <span className="cur">{base.name}</span>{picker}</>;
 
   const leaves = root.children!.reduce((s, g) => s + g.children!.length, 0);
   // what the filter matches, counted over the whole view whether the map dims the rest or drops it
@@ -383,7 +460,9 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
         </div>
         <label className="chk"><input type="checkbox" checked={st.change} onChange={e => commit({ ...stRef.current, change: e.target.checked }, null)} /> Color by change</label>
         <button className="hbtn" title={`Download what's shown as a spreadsheet: ${zoomNode ? zoomNode.name : `every ${M.DIM[A].one}`}${st.filter ? `, matching “${st.filter}”` : ""}, credits included`}
-          onClick={() => downloadCsv(M, { view: st.view, group: zoomNode?.key ?? null, filter: st.filter }, zoomNode?.name)}>CSV</button>
+          onClick={() => drilled
+            ? downloadLevelCsv(M, drilled.base.full, DD_DIM[st.drill!.by], drilled.all.filter(r => !st.filter || `${r.key} ${M.label(st.drill!.by, r.key)}`.toLowerCase().includes(st.filter.toLowerCase())), st.drill!.by)
+            : downloadCsv(M, { view: st.view, group: zoomNode?.key ?? null, filter: st.filter }, zoomNode?.name)}>CSV</button>
         <button className="hbtn" title="Download a JSON summary to give to an AI agent (e)" onClick={exportJSON}>Export for AI</button>
         <input id="filter" ref={filterRef} aria-label="Filter" placeholder="filter  /" autoComplete="off" spellCheck={false} value={filterText}
           onChange={e => { setFilterText(e.target.value); commit(rebuilt({ ...stRef.current, filter: e.target.value.trim(), collapsed: false }), null); }} />
@@ -391,7 +470,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
           disabled={!DATA.run} onClick={() => setSharing(v => !v)}>Share</button>
         <button className="hbtn" title="Read costs again, or pick other subscriptions" onClick={onNewRun}>New run</button>
         {sharing && DATA.run && <SharePanel run={DATA.run} place={place} what={shareWhat} viewName={VIEW_NAMES[st.view] || M.TAG}
-          sub={subscriptionOf(place.view, place.group, place.item)} subName={(id: string) => DATA.subscriptions.find(x => x.id.toLowerCase() === id)?.name ?? id}
+          sub={shareSub} subName={(id: string) => DATA.subscriptions.find(x => x.id.toLowerCase() === id)?.name ?? id}
           current={[DATA.days[M.SPLIT], DATA.days[M.N - 1]]} periodLabel={M.LABEL} build={buildLink} onClose={() => setSharing(false)} />}
       </header>
       <div className="sub">
@@ -417,14 +496,14 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
       </div>
       <div id="mapbox">
         {st.table && <Table M={M} view={st.view} base={base} selNode={selNode} dimMisses={!!st.filter && !st.collapsed}
-          onSelect={select} onOpen={open} />}
+          levelDim={drilled ? DD_DIM[st.drill!.by] : base === root ? A : B} onSelect={select} onOpen={open} />}
         <div id="map" ref={mapRef} hidden={st.table} tabIndex={0} onClick={onMapClick} onMouseMove={onMapMove}
           onMouseLeave={() => (tipRef.current!.style.display = "none")}>
           {base.children!.length ? cells
             : <div className="empty">{narrowed ? `Nothing matches “${st.filter}”` : "No spend in this period"}</div>}
         </div>
       </div>
-      <SidePanel M={M} st={st} narrowed={narrowed} root={root} zoomNode={zoomNode} selNode={selNode} sideRef={sideRef}
+      <SidePanel M={M} st={st} narrowed={narrowed} root={root} zoomNode={shown} selNode={selNode} sideRef={sideRef}
         creditNote={creditNote} onHint={clickHint} onDrop={clickDrop} onRec={clickRec} onToggle={toggle}
         onBudget={id => reveal("subscription", n => n.kind === "group" && n.key === id)} />
       <footer>
@@ -482,9 +561,9 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
   const d = n.cur - n.prev, share = M.grand > 0 ? n.cur / M.grand : 0;
   const change = n.prev < 0.01 ? (n.cur > 0 ? <b className="upc">new</b> : "–")
     : <><b className={d > 0 ? "upc" : "downc"}>{d > 0 ? "+" : ""}{pct(d / n.prev)}</b> <b style={{ color: "var(--dim)" }}>{d > 0 ? "+" : ""}{M.money(d)}</b></>;
-  const path = n.kind === "leaf" ? (n.full.startsWith("/") ? n.full : `${n.parent!.name} / ${n.full}`)
+  const path = n.kind === "leaf" ? (n.full.startsWith("/") || n.detail ? n.full : `${n.parent!.name} / ${n.full}`)
     : n.kind === "group" ? n.full : `${M.DIM[A].many} → ${M.DIM[B].many}`;
-  const kind = n.kind === "root" ? "whole bill" : n.more ? `${n.more} ${M.DIM[n.dim!].many}` : M.DIM[n.dim!].one;
+  const kind = n.kind === "root" ? "whole bill" : n.more ? `${n.more} ${M.DIM[n.dim!].many}` : M.DIM[n.dim!].one + (n.detail && n.kind === "group" ? ", drilled" : "");
   const title = n.kind === "root" ? (narrowed ? `“${st.filter}”` : "Everything") : n.name;
   // Azure's own forecast for this calendar month, on the whole bill only: it knows nothing of views or filters
   const F = n.kind === "root" && !narrowed ? DATA.forecast : null;
@@ -595,6 +674,7 @@ function ShowAll({ open, n, cap, onClick }: { open: boolean; n: number; cap: num
 }
 
 function Spark({ M, n, view }: { M: Model; n: TNode; view: ViewKey }) {
+  if (n.detail) return <div className="note">No daily chart this deep: past a view's two levels, azcost reads one total per period.</div>;
   if (M.totalsOnly(view, n)) return <div className="note">No daily chart here: this view has period totals only (too many resources for daily detail).</div>;
   const { N, SPLIT, DAYS, DATA } = M;
   const max = Math.max(...n.daily, 0.0001), bw = 100 / N;

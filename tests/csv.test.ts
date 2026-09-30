@@ -5,7 +5,7 @@ import { toCsv } from "../src/viewer/csv";
 import { createModel } from "../src/viewer/model";
 
 const d = demo(30, "2026-09-28"), M = createModel(d, summarize(d));
-const lines = (csv: string) => csv.replace(/^﻿/, "").trimEnd().split("\r\n");
+const lines = (csv: string) => csv.replace(/^\ufeff/, "").trimEnd().split("\r\n");
 
 describe("CSV export", () => {
   it("has one row per box of the view, credits included, and adds up to the bill", () => {
@@ -34,7 +34,7 @@ describe("CSV export", () => {
 
   it("includes what went to zero, keeps negative numbers numeric, and marks UTF-8 for Excel", () => {
     const csv = toCsv(M, { view: "service", group: null, filter: "" });
-    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv.startsWith("\ufeff")).toBe(true);
     const e8 = lines(csv).find(r => r.includes("E8s v5"))!.split(",");
     expect(Number(e8[6])).toBeLessThan(0); // the scaled-down worker: a plain negative number, not '-123 text
   });
