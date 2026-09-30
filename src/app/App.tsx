@@ -8,7 +8,8 @@ import {
 } from "../azure/costs";
 import { demo } from "../core/demo";
 import { FAKE } from "../dev/fakeMode";
-import { nowStamp, type CostData, type Metric } from "../core/types";
+import { MAX_DAYS, resolvePeriod, type PeriodMode } from "../core/period";
+import { localToday, nowStamp, type CostData, type Metric } from "../core/types";
 import { Viewer } from "../viewer/Viewer";
 import { forgetRun, loadRun, saveRun, type SavedRun } from "./cache";
 import "./app.css";
@@ -202,6 +203,9 @@ function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
   const [find, setFind] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [opts, setOpts] = useState({ days: 30, metric: "ActualCost" as Metric, advisor: true, graph: true, tag: "", scope: "" });
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("days");
+  const [range, setRange] = useState({ from: "", to: "" });
+  const period = resolvePeriod({ mode: periodMode, days: opts.days, ...range });
 
   useEffect(() => {
     listSubscriptions(new Azure(session.token)).then(list => {
@@ -214,12 +218,14 @@ function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
   const shown = useMemo(() => (subs ?? []).filter(s => !find || `${s.name} ${s.id}`.toLowerCase().includes(find.toLowerCase())), [subs, find]);
   const togglePick = (id: string) => setPicked(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const scope = opts.scope.trim();
-  const ready = (scope || picked.size > 0) && opts.days >= 1 && opts.days <= 180;
+  const ready = (scope || picked.size > 0) && !("error" in period);
 
   function read() {
+    if ("error" in period) return;
     const targets = scope ? [scopeTarget(scope)] : (subs ?? []).filter(s => picked.has(s.id)).map(subscriptionTarget);
-    onRead(targets, { days: opts.days, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag: opts.tag.trim() || null },
-      `reading ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}, last ${opts.days} days (+${opts.days} before, for comparison)`);
+    onRead(targets, { period, metric: opts.metric, advisor: opts.advisor, graph: opts.graph, tag: opts.tag.trim() || null },
+      `reading ${targets.length === 1 ? targets[0].name : `${targets.length} subscriptions`}: ${period.cur[0]} to ${period.cur[1]}, ` +
+      `compared with ${period.prev[0]} to ${period.prev[1]}`);
   }
 
   return (
@@ -245,8 +251,16 @@ function Setup({ session, saved, onDemo, onOpenSaved, onRead }: {
         </div>
       </div>
       <div className="section grid">
-        <label>Period (days)<input type="number" min={1} max={180} value={opts.days} onChange={e => setOpts({ ...opts, days: Number(e.target.value) })} />
-          <span className="muted small">compared with the same number of days before</span></label>
+        <label>Period<select value={periodMode} onChange={e => setPeriodMode(e.target.value as PeriodMode)}>
+          <option value="days">Last days…</option><option value="mtd">Month to date</option>
+          <option value="lastMonth">Last full month</option><option value="custom">Custom range…</option></select>
+          {periodMode === "days" && <input type="number" min={1} max={MAX_DAYS} value={opts.days} aria-label="days"
+            onChange={e => setOpts({ ...opts, days: Number(e.target.value) })} />}
+          {periodMode === "custom" && <span className="row">
+            <input type="date" value={range.from} max={localToday()} aria-label="from" onChange={e => setRange({ ...range, from: e.target.value })} />
+            <input type="date" value={range.to} max={localToday()} aria-label="to" onChange={e => setRange({ ...range, to: e.target.value })} /></span>}
+          <span className={"small " + ("error" in period ? "warn" : "muted")}>{"error" in period ? period.error
+            : `${period.cur[0]} to ${period.cur[1]}, compared with ${period.prev[0]} to ${period.prev[1]}`}</span></label>
         <label>Cost type<select value={opts.metric} onChange={e => setOpts({ ...opts, metric: e.target.value as Metric })}>
           <option value="ActualCost">Actual cost</option><option value="AmortizedCost">Amortized cost</option></select>
           <span className="muted small">amortized spreads reservation and savings plan purchases over their term</span></label>

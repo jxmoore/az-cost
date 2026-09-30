@@ -447,12 +447,12 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
         <div className="sel-name">{href ? <a href={href} target="_blank" rel="noopener noreferrer" title="open in the Azure portal">{title}</a> : title}</div>
         <div className="sel-path">{path}</div>
         <div className="big">{big}<small>{cents}</small></div>
-        <div style={{ color: "var(--dim)" }}>last {DAYS} days · {M.period()}</div>
+        <div style={{ color: "var(--dim)" }}>{M.LABEL} · {M.period()}</div>
         {creditNote(n, "div")}
         <div className="bar"><i style={{ width: `${Math.min(100, share * 100)}%` }} /></div>
         <div className="stats">
           <div><span>of bill</span>{pct(share)}</div>
-          <div><span>vs prev {DAYS}d</span>{change}</div>
+          <div><span>{M.PREV_SHORT}</span>{change}</div>
           <div><span>per day</span>{M.money(n.cur / DAYS)}</div>
           <div><span>monthly pace</span>{M.money((n.cur / DAYS) * 30.4)}</div>
           {F ? <>
@@ -479,7 +479,7 @@ function SidePanel({ M, st, narrowed, root, zoomNode, selNode, sideRef, creditNo
       {drops.length > 0 && <section>
         <div className="h">Biggest drops <b style={{ color: "var(--down)" }}>{M.money(drops.reduce((s, h) => s + h.d, 0))}</b></div>
         {drops.map((h, i) => {
-          const gone = h.n.cur < 0.005, why = `${gone ? "" : "down " + pct(-h.d / h.n.prev) + " "}(${M.money(h.d)}) vs previous ${DAYS}d`;
+          const gone = h.n.cur < 0.005, why = `${gone ? "" : "down " + pct(-h.d / h.n.prev) + " "}(${M.money(h.d)}) vs ${M.PREV}`;
           return <Row key={i} color="var(--down)" title={`${shortSvc(h.n.parent!.key)} · ${h.n.name}`} full={h.n.full} value={M.money(h.n.cur)}
             tag={gone ? "gone" : "fell"} why={why} onClick={() => onDrop(i)} />;
         })}
@@ -524,7 +524,7 @@ function Spark({ M, n, view }: { M: Model; n: TNode; view: ViewKey }) {
             fill={i < SPLIT ? "#3a4252" : "var(--accent)"} />;
         })}
       </svg>
-      <div className="axis"><span>{day(DATA.days[0])}</span><span>previous {DAYS}d | last {DAYS}d</span><span>{day(DATA.days[N - 1])}</span></div>
+      <div className="axis"><span>{day(DATA.days[0])}</span><span>{M.SPLIT === DAYS ? `previous ${DAYS}d | last ${DAYS}d` : "previous | current"}</span><span>{day(DATA.days[N - 1])}</span></div>
     </div>
   );
 }

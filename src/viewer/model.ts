@@ -108,6 +108,11 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
     return [`${v < 0 ? "-" : ""}${CUR}${Number(w).toLocaleString("en-US")}`, "." + c];
   }
   const period = () => `${day(DATA.days[SPLIT])} – ${day(DATA.days[N - 1])}`;
+  // what the current period is, and what it's measured against, in words
+  const mode = DATA.period?.mode ?? "days";
+  const LABEL = DATA.period?.label ?? `last ${DAYS} days`;
+  const PREV = mode === "mtd" ? "the same days last month" : mode === "lastMonth" ? "the month before" : `the previous ${SPLIT} days`;
+  const PREV_SHORT = mode === "mtd" ? "vs last month" : mode === "lastMonth" ? "vs month before" : `vs prev ${SPLIT}d`;
 
   const DIM: Record<Dim, { one: string; many: string; label: (v: string, names: Record<string, string>) => string }> = {
     ServiceName: { one: "service", many: "services", label: v => shortSvc(v) },
@@ -249,7 +254,7 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
   // ---------- worth a look: the hints the rules computed (the export's `hints`, in order), placed on the map
   function hintText(h: Hint): string {
     if (h.kind === "devtest") return `${h.resources} always-on ${h.resources === 1 ? "resource" : "resources"} in this dev/test group billed every day of the period; scale down or stop outside working hours, or go serverless`;
-    if (h.kind === "grower") return h.previous! < 0.01 ? "new this period" : `up ${pct(h.change! / h.previous!)} (+${money(h.change!)}) vs previous ${DAYS}d`;
+    if (h.kind === "grower") return h.previous! < 0.01 ? "new this period" : `up ${pct(h.change! / h.previous!)} (+${money(h.change!)}) vs ${PREV}`;
     if (h.kind === "spike") return `spiked on ${day(h.date!)}: ${money(h.day_cost!)} vs a usual ${money(h.usual!)}/day`;
     if (h.kind === "steady") return `steady at about ${money(h.monthly!)}/mo on ${h.meters!.join(", ")}: a reservation or savings plan could cut it`;
     return h.reason || "";
@@ -301,7 +306,7 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
     && (marks(view).has(n.parent!.key + "\u0000" + n.key) || marks(view).has(n.parent!.key + "\u0000*"));
 
   return {
-    DATA, EXPORT, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS,
+    DATA, EXPORT, N, SPLIT, DAYS, TAG, CUR, DIM, grand, UNTAGGED, TIPS, LABEL, PREV, PREV_SHORT,
     money, bigMoney, period, category, color, tree, credits, totalsOnly, portalHref,
     tipDetail, tipLine, biggestDrops, worthALook, marks, isTodo,
   };

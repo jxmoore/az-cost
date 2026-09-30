@@ -255,7 +255,8 @@ const AI_INSTRUCTIONS =
   "over the term). When `currency` is \"mixed\", the subscriptions bill in the currencies listed in `currencies` and " +
   "Azure didn't convert them, so totals add different currencies: compare amounts within one subscription only. " +
   "`usd_rate` is units of `currency` per US dollar, as this bill priced them (null when unknown). " +
-  "`current` is the most recent period and `previous` is the equally long period before it. " +
+  "`current` is the period in `period.label` and `previous` is what it's compared with: the equally long period before it, " +
+  "the same days of last month (month to date), or the month before (a full month); `period` gives both date ranges. " +
   "Line items are Azure meters grouped by service; `totals.credits_and_refunds` is the part of `current` that comes " +
   "from negative line items (credits, refunds). `resource_fallback` names subscriptions with so many resources that " +
   "azcost read one total per resource and period for them: their resource groups' amounts are right, but daily " +
@@ -292,7 +293,7 @@ export interface Summary {
   usd_rate: number | null;
   subscriptions: Omit<SubInfo, "tenant">[];
   demo_data: boolean;
-  period: { current: { start: string; end: string; days: number }; previous: { start: string; end: string; days: number } };
+  period: { label: string; current: { start: string; end: string; days: number }; previous: { start: string; end: string; days: number } };
   totals: Entry & { daily_avg: number; monthly_pace: number; credits_and_refunds: number };
   by_service: ({ service: string } & Entry)[];
   by_subscription: Record<string, unknown>[];
@@ -452,6 +453,7 @@ export function summarize(data: CostData): Summary {
     subscriptions: (data.subscriptions ?? []).map(({ tenant: _t, ...s }) => s), // the tenant isn't needed there
     demo_data: !!data.demo,
     period: {
+      label: data.period?.label ?? `last ${n} days`,
       current: { start: days[split], end: days[days.length - 1], days: n },
       previous: { start: days[0], end: days[split - 1], days: split },
     },

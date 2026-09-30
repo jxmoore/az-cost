@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Azure } from "../src/azure/client";
 import { fetchCosts, subscriptionTarget, type OnUpdate } from "../src/azure/costs";
 import { demo } from "../src/core/demo";
+import { resolvePeriod, type Period } from "../src/core/period";
 import { pit, summarize } from "../src/core/summarize";
 import type { CostData } from "../src/core/types";
 import { A, B, DAYS, fakeAzure, TODAY } from "../src/dev/fakeAzure";
@@ -15,7 +16,7 @@ async function read(concurrency?: number, onUpdate?: OnUpdate): Promise<{ data: 
   vi.stubGlobal("fetch", fake.fetch);
   const targets = [subscriptionTarget({ id: A, name: "team-a", tenant: "t1" }), subscriptionTarget({ id: B, name: "team-b", tenant: "t1" })];
   const data = await fetchCosts(new Azure(async () => "token"), targets,
-    { days: DAYS, metric: "ActualCost", advisor: true, graph: true, tag: null, today: TODAY, concurrency }, () => {}, onUpdate);
+    { period: resolvePeriod({ mode: "days", days: DAYS }, TODAY) as Period, metric: "ActualCost", advisor: true, graph: true, tag: null, today: TODAY, concurrency }, () => {}, onUpdate);
   return { data: { ...data, generated: "2026-09-28 10:00" }, seen: fake.seen };
 }
 

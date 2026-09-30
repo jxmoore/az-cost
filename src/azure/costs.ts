@@ -1,7 +1,8 @@
 // Reading costs: the Cost Management, forecast, tag, Advisor and Resource Graph calls, folded into one run's data.
 import { fold, type RawEntry } from "../core/pack";
 import type { AdvisorRec, CostData, Dim, Forecast, GraphFinding, Metric, SubInfo, ViewData, ViewKey } from "../core/types";
-import { addDays, lastFullDay, localToday, monthEnd } from "../core/types";
+import { periodDays, type Period } from "../core/period";
+import { localToday, monthEnd } from "../core/types";
 import { Azure, AzureError, Cancelled, TooManyPages, type Log } from "./client";
 
 const API_VERSION = "2025-03-01"; // Microsoft.CostManagement/query
@@ -249,7 +250,7 @@ export function groupKey(scope: string, rg: string, resourceId: string): string 
 const serviceOf = (r: QueryRow) => r.ServiceName || "(no service)";
 
 export interface FetchOptions {
-  days: number;
+  period: Period; // what to read, and what to compare it with
   metric: Metric;
   advisor: boolean;
   graph: boolean;
@@ -284,10 +285,8 @@ type ForecastResult = NonNullable<Awaited<ReturnType<typeof monthForecast>>>;
  * after each stage; a view is in it once every subscription's part of it is, so no view shows half a bill.
  * Each subscription's results are kept apart and joined in order, so the same bill always gives the same data. */
 export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, log: Log, onUpdate?: OnUpdate): Promise<CostData> {
-  const today = o.today ?? localToday();
-  const end = lastFullDay(today), days = o.days;
-  const start = addDays(end, -(2 * days - 1)); // current window + previous window, for the "vs prev" deltas
-  const dates = Array.from({ length: 2 * days }, (_, i) => addDays(start, i));
+  const today = o.today ?? localToday(), p = o.period;
+  const { days: dates, split } = periodDays(p); // the previous period's days, then the current's
   const index = new Map(dates.map((d, i) => [d.replaceAll("-", ""), i]));
   const twins = new Map<string, number>();
   for (const t of targets) twins.set(t.name, (twins.get(t.name) ?? 0) + 1);
@@ -352,9 +351,9 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
       if (!(e instanceof TooManyPages)) throw e;
       // too many resources x days: read one total per resource and period instead (two small queries)
       log(`  ${t.name}: too many resources for daily detail, reading period totals instead`);
-      const prev = await run(t, VIEWS.resource, { start: dates[0], end: dates[days - 1], granularity: null });
-      const cur = await run(t, VIEWS.resource, { start: dates[days], end: dates[dates.length - 1], granularity: null });
-      rows = [...prev.map(r => [r, 0] as [QueryRow, number]), ...cur.map(r => [r, days] as [QueryRow, number])];
+      const prev = await run(t, VIEWS.resource, { start: p.prev[0], end: p.prev[1], granularity: null });
+      const cur = await run(t, VIEWS.resource, { start: p.cur[0], end: p.cur[1], granularity: null });
+      rows = [...prev.map(r => [r, 0] as [QueryRow, number]), ...cur.map(r => [r, split] as [QueryRow, number])];
       fallback[i] = true;
     }
     for (const [r, day] of rows) {
@@ -447,7 +446,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
     const advisorList = o.advisor && withAdvisor.length && done.advisor
       ? recs.flat().sort((a, b) => (b.annual_savings ?? -1) - (a.annual_savings ?? -1)) : null;
     return {
-      days: dates, split: days, views, currency,
+      days: dates, split, views, currency, period: { mode: p.mode, label: p.label },
       subscriptions: known, resource_fallback: targets.filter((_, i) => fallback[i]).map(t => t.name),
       advisor: advisorList, advisor_error: advisorError,
       mixed_currencies: mixed, usd_rate: usdRate,

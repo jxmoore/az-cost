@@ -1,4 +1,5 @@
 // The data contract between the fetcher (or demo) and the viewer.
+import type { PeriodMode } from "./period";
 
 export type ViewKey = "service" | "subscription" | "region" | "resource" | "tag";
 export type Dim = "ServiceName" | "Meter" | "SubscriptionId" | "ResourceLocation" | "ResourceGroupName" | "ResourceId" | "TagValue";
@@ -36,8 +37,9 @@ export interface GraphFinding { check: string; id: string; name: string; resourc
 export interface Forecast { month: string; actual: number; forecast: number; total: number }
 
 export interface CostData {
-  days: string[]; // ISO dates, previous period then current period
+  days: string[]; // ISO dates, previous period then current period (they needn't touch: month to date)
   split: number; // index of the current period's first day
+  period?: { mode: PeriodMode; label: string }; // what the current period is: "last 30 days", "September 2026"
   views: Partial<Record<ViewKey, ViewData>>;
   currency: string;
   subscriptions: SubInfo[];
