@@ -27,7 +27,7 @@ export function pack(rows: Map<string, number[]>): PackedRow[] {
   return [...kept].map(([k, d]) => ({ k: split(k), d: d.map(v => Math.round(v * 1e4) / 1e4) }));
 }
 
-/** Add a daily series into a keyed accumulator of `n` days. */
+/** The daily series for a key in a keyed accumulator of `n` days (new ones start at zero). Keys join with \u0000. */
 export function accumulate(rows: Map<string, number[]>, key: [string, string], n: number): number[] {
   const k = join(key);
   let acc = rows.get(k);

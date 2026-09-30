@@ -2,8 +2,8 @@
 import type { RunSpec } from "../app/links";
 import type { PeriodMode } from "./period";
 
-export type ViewKey = "service" | "subscription" | "region" | "resource" | "tag";
-export type Dim = "ServiceName" | "Meter" | "SubscriptionId" | "ResourceLocation" | "ResourceGroupName" | "ResourceId" | "TagValue";
+export type ViewKey = "service" | "subscription" | "region" | "resource" | "type" | "tag";
+export type Dim = "ServiceName" | "Meter" | "SubscriptionId" | "ResourceLocation" | "ResourceGroupName" | "ResourceId" | "ResourceType" | "TagValue";
 export type Metric = "ActualCost" | "AmortizedCost";
 
 /** One packed row: [outer key, inner key] and its daily totals over both periods. */

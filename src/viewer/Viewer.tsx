@@ -218,7 +218,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     else if (e.key === "s" && DATA.run) setSharing(v => !v);
     else if (e.key === "c") commit({ ...s, change: !s.change }, null);
     else if (e.key === "t") commit({ ...s, table: !s.table }, null);
-    else if (/^[1-5]$/.test(e.key)) setView(VIEW_KEYS[+e.key - 1]);
+    else if (/^[1-6]$/.test(e.key)) setView(VIEW_KEYS[+e.key - 1]);
   }
   function onPop(e: PopStateEvent) {
     const h = e.state;

@@ -131,10 +131,10 @@ export function demo(days: number, today: string = localToday()): CostData {
   const n = 2 * days;
   const dates = Array.from({ length: n }, (_, i) => addDays(end, -(n - 1 - i)));
   const weekend = dates.map(d => [0, 6].includes(new Date(d + "T00:00:00Z").getUTCDay()));
-  const rows: Record<ViewKey, Map<string, number[]>> =
+  const rows: Record<Exclude<ViewKey, "type">, Map<string, number[]>> =
     { service: new Map(), subscription: new Map(), region: new Map(), resource: new Map(), tag: new Map() };
   const names: Record<string, Record<string, string>> = { service: {}, subscription: { ...DEMO_SUBS }, region: {}, resource: {} };
-  const keysFor = (service: string, sub: string, region: string, gkey: string, rid: string, rg: string): [ViewKey, [string, string]][] =>
+  const keysFor = (service: string, sub: string, region: string, gkey: string, rid: string, rg: string): [Exclude<ViewKey, "type">, [string, string]][] =>
     [["subscription", [sub, service]], ["region", [region, service]], ["resource", [gkey, rid]], ["tag", [demoEnv(sub, rg), service]]];
 
   for (const [service, meter, perDay, growth, spots] of DEMO) {
@@ -152,7 +152,7 @@ export function demo(days: number, today: string = localToday()): CostData {
       const rid = demoRid(sub, rg, path);
       const gkey = groupKey(`/subscriptions/${sub}`, rg, rid);
       names.resource[gkey] = `${rg || "(no resource group)"} · ${DEMO_SUBS[sub]}`;
-      for (const [view, key] of [["service", [service, meter]], ...keysFor(service, sub, region, gkey, rid, rg)] as [ViewKey, [string, string]][]) {
+      for (const [view, key] of [["service", [service, meter]], ...keysFor(service, sub, region, gkey, rid, rg)] as [Exclude<ViewKey, "type">, [string, string]][]) {
         const acc = accumulate(rows[view], key, n);
         daily.forEach((v, i) => (acc[i] += v));
       }
@@ -160,7 +160,7 @@ export function demo(days: number, today: string = localToday()): CostData {
   }
   const oneDay = (service: string, meter: string, sub: string, region: string, rg: string, path: string, day: number, amount: number) => {
     const rid = demoRid(sub, rg, path), gkey = groupKey(`/subscriptions/${sub}`, rg, rid);
-    for (const [view, key] of [["service", [service, meter]], ...keysFor(service, sub, region, gkey, rid, rg)] as [ViewKey, [string, string]][]) {
+    for (const [view, key] of [["service", [service, meter]], ...keysFor(service, sub, region, gkey, rid, rg)] as [Exclude<ViewKey, "type">, [string, string]][]) {
       accumulate(rows[view], key, n)[day] += amount;
     }
   };

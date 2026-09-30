@@ -15,12 +15,14 @@ const COLUMN_ERROR = /aggregation|column|costusd|pretaxcost|\bcost\b(?!\s*manage
 
 // Each view is outer box -> inner box. A query can group by two dimensions at most, so the
 // subscription view is not queried: every query runs per subscription and the service query feeds it too.
-export const VIEWS: Record<Exclude<ViewKey, "tag">, [Dim, Dim]> = {
+export const VIEWS: Record<Exclude<ViewKey, "tag" | "type">, [Dim, Dim]> = { // the type view is derived, not read
   service: ["ServiceName", "Meter"],
   subscription: ["SubscriptionId", "ServiceName"],
   region: ["ResourceLocation", "ServiceName"],
   resource: ["ResourceGroupName", "ResourceId"],
 };
+
+type FetchedView = Exclude<ViewKey, "type">;
 
 export interface Subscription { id: string; name: string; state: string; tenant: string | null }
 export interface Target { id: string; name: string; scope: string; tenant: string | null }
@@ -320,7 +322,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const n = targets.length, concurrency = o.concurrency ?? CONCURRENCY;
 
   // per subscription, in target order
-  const raw = targets.map(() => ({ service: [], subscription: [], region: [], resource: [], tag: [] } as Record<ViewKey, RawEntry[]>));
+  const raw = targets.map(() => ({ service: [], subscription: [], region: [], resource: [], tag: [] } as Record<FetchedView, RawEntry[]>));
   const resourceNames = targets.map(() => ({} as Record<string, string>));
   const subs: (SubInfo | undefined)[] = new Array(n), fallback: boolean[] = new Array(n).fill(false);
   const forecasts: ({ f: ForecastResult | null; why: string } | undefined)[] = new Array(n);
@@ -351,7 +353,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   };
 
   /** `day` is set for period totals, which have no UsageDate: they land on their period's first day. */
-  const add = (i: number, view: ViewKey, key: [string, string], r: QueryRow, day?: number) => {
+  const add = (i: number, view: FetchedView, key: [string, string], r: QueryRow, day?: number) => {
     const d = day ?? index.get(usageDay(r.UsageDate));
     if (d === undefined) return;
     const cost = "Cost" in r ? r.Cost : r.PreTaxCost, costUsd = "CostUSD" in r ? r.CostUSD : r.PreTaxCostUSD;
@@ -444,7 +446,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   /** The data as far as it's read. */
   function assemble(): CostData {
     const known = subs.filter((s): s is SubInfo => !!s);
-    const all = (view: ViewKey) => raw.flatMap(r => r[view]);
+    const all = (view: FetchedView) => raw.flatMap(r => r[view]);
     const found = new Set(known.map(s => s.currency).filter((c): c is string => !!c));
     // USD only if every row has a USD figure: a subscription may have answered in its billing currency alone
     const usd = found.size > 1 && raw.every(r => Object.values(r).every(entries => entries.every(e => e[3] !== null && e[3] !== undefined)));

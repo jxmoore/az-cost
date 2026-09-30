@@ -22,7 +22,7 @@ export interface Place {
   item: string | null; // a box in the group, which opens the group
 }
 
-const VIEWS: ViewKey[] = ["service", "subscription", "region", "resource", "tag"];
+const VIEWS: ViewKey[] = ["service", "subscription", "region", "resource", "type", "tag"];
 
 function periodParam(p: PeriodSpec): string {
   if (p.mode === "days") return `days-${p.days ?? 30}`;
@@ -78,5 +78,5 @@ export function parseLink(search: string): { run: RunSpec; place: Place } | null
 export function subscriptionOf(view: ViewKey, group: string | null, item: string | null): string | null {
   if (view === "subscription" && group) return group.toLowerCase();
   const m = /^\/subscriptions\/([0-9a-f-]{36})/i.exec(item ?? group ?? "");
-  return view === "resource" && m ? m[1].toLowerCase() : null;
+  return (view === "resource" || view === "type") && m ? m[1].toLowerCase() : null; // a type spans subscriptions; its resources don't
 }

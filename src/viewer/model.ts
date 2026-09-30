@@ -1,9 +1,10 @@
 // Everything the viewer derives from one run's data: trees, names, colors, formatting and the side panel's lists.
 import type { Hint, LinkedTip, Summary } from "../core/summarize";
+import { typeLabel, withTypeView } from "../core/resourceTypes";
 import type { AdvisorRec, Budget, CostData, Dim, ViewKey } from "../core/types";
 
-export const VIEW_KEYS: ViewKey[] = ["service", "subscription", "region", "resource", "tag"];
-export const VIEW_NAMES: Record<string, string> = { service: "Service", subscription: "Subscription", region: "Region", resource: "Resource" };
+export const VIEW_KEYS: ViewKey[] = ["service", "subscription", "region", "resource", "type", "tag"];
+export const VIEW_NAMES: Record<string, string> = { service: "Service", subscription: "Subscription", region: "Region", resource: "Resource", type: "Type" };
 
 export interface TNode {
   kind: "root" | "group" | "leaf";
@@ -90,7 +91,8 @@ export interface PlacedHint {
 
 export type Model = ReturnType<typeof createModel>;
 
-export function createModel(DATA: CostData, EXPORT: Summary) {
+export function createModel(data: CostData, EXPORT: Summary) {
+  const DATA = withTypeView(data); // the type view is derived from the resource view: every VM, disk, database...
   const N = DATA.days.length, SPLIT = DATA.split, DAYS = N - SPLIT;
   const TAG = DATA.views.tag?.tag ?? "tag"; // the tag view splits the bill by one tag's values
   const CUR = DATA.mixed_currencies ? "" : sym(DATA.currency); // unconverted currencies: no one symbol would be true
@@ -122,6 +124,7 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
     ResourceGroupName: { one: "resource group", many: "resource groups", label: (v, names) => names[v] || lastSeg(v) },
     // resources without an id (some marketplace and support charges) keep a plain label
     ResourceId: { one: "resource", many: "resources", label: v => (v.startsWith("/") ? lastSeg(v) : shortSvc(v)) },
+    ResourceType: { one: "resource type", many: "resource types", label: v => typeLabel(v) },
     // one box per value of the tag, and one for spend on resources without it
     TagValue: { one: `${TAG} value`, many: `${TAG} values`, label: v => v || "(untagged)" },
   };
@@ -133,6 +136,7 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
     if (dim === "Meter") return match(METER_RULES, n.key) || svcCat(n.parent!.key);
     if (dim === "ServiceName") return svcCat(n.key);
     if (dim === "ResourceId") return n.key.startsWith("/") ? match(PROVIDER_RULES, n.key) || "other" : svcCat(n.key);
+    if (dim === "ResourceType") return match(PROVIDER_RULES, `/providers/${n.key}/`) || "other";
     return null;
   }
   function color(n: TNode, view: ViewKey, change: boolean): string {
@@ -216,8 +220,9 @@ export function createModel(DATA: CostData, EXPORT: Summary) {
   // a subscription with too many resources gets one total per resource and period, so no daily chart in that view
   const FALLBACK = new Set((DATA.subscriptions || []).filter(s => (DATA.resource_fallback || []).includes(s.name)).map(s => s.id.toLowerCase()));
   const subOf = (n: TNode) => ((n.kind === "leaf" ? n.parent!.key : n.key).match(/^\/subscriptions\/([^/]+)/i) || [])[1]?.toLowerCase();
-  const totalsOnly = (view: ViewKey, n?: TNode) => view === "resource" && (DATA.resource_fallback?.length ?? 0) > 0
-    && (!n || n.kind === "root" || !FALLBACK.size || FALLBACK.has(subOf(n)!));
+  // the type view is made of the same rows: a type spans subscriptions, so any subscription with totals only affects it
+  const totalsOnly = (view: ViewKey, n?: TNode) => (view === "resource" || view === "type") && (DATA.resource_fallback?.length ?? 0) > 0
+    && (!n || n.kind === "root" || !FALLBACK.size || (view === "type" && n.kind === "group") || FALLBACK.has(subOf(n)!));
 
   // resources and resource groups are keyed by ARM id, subscriptions by bare GUID; the demo's ids are made up
   const armId = (n: TNode) => n.kind === "root" || n.more || DATA.demo ? null
