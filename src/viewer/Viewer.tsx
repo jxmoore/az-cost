@@ -9,7 +9,9 @@ import {
   type Model, type TNode,
 } from "./model";
 import { buildLink, subscriptionOf, type Place } from "../app/links";
+import { downloadCsv } from "./csv";
 import { SharePanel } from "./Share";
+import { Table } from "./Table";
 import "./viewer.css";
 
 /** The selection, as something that survives a rebuild: keys into the tree, the "+N more" box of a group, or a node
@@ -25,6 +27,7 @@ interface VS {
   zoom: string | null; // a group key; "" is a real key (the no-region group), so never test it for truthiness
   sel: Sel;
   expanded: { hints: boolean; recs: boolean };
+  table: boolean; // the current level as a table instead of the map
 }
 
 const narrowedOf = (s: VS) => !!s.filter && s.collapsed;
@@ -54,7 +57,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     try { hashView = decodeURIComponent(location.hash.slice(1)); } catch { /* a malformed hash opens the default view */ }
     return {
       view: VIEW_KEYS.includes(hashView as ViewKey) && DATA.views[hashView as ViewKey] ? (hashView as ViewKey) : "service",
-      change: false, filter: "", collapsed: false, more: 0, zoom: null, sel: null, expanded: { hints: false, recs: false },
+      change: false, filter: "", collapsed: false, more: 0, zoom: null, sel: null, expanded: { hints: false, recs: false }, table: false,
     };
   });
   const [filterText, setFilterText] = useState("");
@@ -213,7 +216,8 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
     else if (e.key === "Backspace") { e.preventDefault(); up(); }
     else if (e.key === "e") exportJSON();
     else if (e.key === "s" && DATA.run) setSharing(v => !v);
-    else if (e.key === "c" || e.key === "t") commit({ ...s, change: !s.change }, null);
+    else if (e.key === "c") commit({ ...s, change: !s.change }, null);
+    else if (e.key === "t") commit({ ...s, table: !s.table }, null);
     else if (/^[1-5]$/.test(e.key)) setView(VIEW_KEYS[+e.key - 1]);
   }
   function onPop(e: PopStateEvent) {
@@ -373,7 +377,13 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
           {VIEW_KEYS.filter(k => DATA.views[k]).map(k =>
             <button key={k} className={k === st.view ? "on" : ""} onClick={() => setView(k)}>{VIEW_NAMES[k] || M.TAG}</button>)}
         </div>
+        <div className="seg" title="the current level as a map or a table (t)">
+          <button className={st.table ? "" : "on"} onClick={() => commit({ ...stRef.current, table: false }, null)}>Map</button>
+          <button className={st.table ? "on" : ""} onClick={() => commit({ ...stRef.current, table: true }, null)}>Table</button>
+        </div>
         <label className="chk"><input type="checkbox" checked={st.change} onChange={e => commit({ ...stRef.current, change: e.target.checked }, null)} /> Color by change</label>
+        <button className="hbtn" title={`Download what's shown as a spreadsheet: ${zoomNode ? zoomNode.name : `every ${M.DIM[A].one}`}${st.filter ? `, matching “${st.filter}”` : ""}, credits included`}
+          onClick={() => downloadCsv(M, { view: st.view, group: zoomNode?.key ?? null, filter: st.filter }, zoomNode?.name)}>CSV</button>
         <button className="hbtn" title="Download a JSON summary to give to an AI agent (e)" onClick={exportJSON}>Export for AI</button>
         <input id="filter" ref={filterRef} aria-label="Filter" placeholder="filter  /" autoComplete="off" spellCheck={false} value={filterText}
           onChange={e => { setFilterText(e.target.value); commit(rebuilt({ ...stRef.current, filter: e.target.value.trim(), collapsed: false }), null); }} />
@@ -406,7 +416,9 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
         </div>
       </div>
       <div id="mapbox">
-        <div id="map" ref={mapRef} tabIndex={0} onClick={onMapClick} onMouseMove={onMapMove}
+        {st.table && <Table M={M} view={st.view} base={base} selNode={selNode} dimMisses={!!st.filter && !st.collapsed}
+          onSelect={select} onOpen={open} />}
+        <div id="map" ref={mapRef} hidden={st.table} tabIndex={0} onClick={onMapClick} onMouseMove={onMapMove}
           onMouseLeave={() => (tipRef.current!.style.display = "none")}>
           {base.children!.length ? cells
             : <div className="empty">{narrowed ? `Nothing matches “${st.filter}”` : "No spend in this period"}</div>}
@@ -417,7 +429,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
         onBudget={id => reveal("subscription", n => n.kind === "group" && n.key === id)} />
       <footer>
         <span><kbd>click</kbd>select</span><span><kbd>click</kbd>again or <kbd>enter</kbd>open</span><span><kbd>tab</kbd>next</span><span><kbd>⌫</kbd>up</span>
-        <span>{VIEW_KEYS.map((k, i) => (DATA.views[k] ? <kbd key={k}>{i + 1}</kbd> : null))}view</span><span><kbd>c</kbd>color</span><span><kbd>/</kbd>filter</span><span><kbd>e</kbd>export</span><span><kbd>s</kbd>share</span><span><kbd>esc</kbd>clear</span>
+        <span>{VIEW_KEYS.map((k, i) => (DATA.views[k] ? <kbd key={k}>{i + 1}</kbd> : null))}view</span><span><kbd>c</kbd>color</span><span><kbd>t</kbd>table</span><span><kbd>/</kbd>filter</span><span><kbd>e</kbd>export</span><span><kbd>s</kbd>share</span><span><kbd>esc</kbd>clear</span>
         <span className="spacer" />
         <span>
           {DATA.demo && <><span className="badge">demo data</span> </>}

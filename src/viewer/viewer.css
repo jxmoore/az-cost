@@ -140,8 +140,8 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted); border: 
   header { flex-wrap: wrap; } .legend { display: none; }
 }
 
-/* the share panel drops from the header, over the map */
-header { position: relative; }
+/* the share panel drops from the header, over the map; on a laptop the header's controls wrap to a second row */
+header { position: relative; flex-wrap: wrap; row-gap: 8px; }
 .hbtn.on { color: var(--text); border-color: #3a4356; }
 .hbtn:disabled { opacity: .4; cursor: default; }
 .share { position: absolute; top: calc(100% + 6px); right: 14px; z-index: 20; width: 420px; max-width: calc(100vw - 40px);
@@ -155,3 +155,23 @@ header { position: relative; }
   padding: 5px 8px; border-radius: 6px; outline: none; }
 .share label.chk { white-space: normal; align-items: flex-start; }
 .share label.chk input { margin-top: 2px; }
+
+/* the table: the current level, every box, sortable */
+#map[hidden] { display: none; }
+.table-wrap { height: 100%; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+table.costs { width: 100%; border-collapse: collapse; }
+.costs th, .costs td { padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.costs th { position: sticky; top: 0; background: var(--bg); color: var(--dim); font-weight: 500; font-size: 10.5px; letter-spacing: .6px;
+  text-transform: uppercase; cursor: pointer; user-select: none; z-index: 1; }
+.costs th:hover { color: var(--text); }
+.costs .num { text-align: right; }
+.costs td.name { max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.costs td.name i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 8px; vertical-align: 0; }
+.costs tbody tr { cursor: pointer; }
+.costs tbody tr:hover { background: #151a23; }
+.costs tr.sel { background: color-mix(in oklab, var(--accent) 14%, var(--bg)); }
+.costs tr.sel td.name { box-shadow: inset 2px 0 0 var(--accent); }
+.costs tr.dim { opacity: .3; }
+.costs tr.gone td { color: var(--dim); }
+.costs .dimc { color: var(--muted); }
+.costs tfoot td { position: sticky; bottom: 0; background: var(--bg); color: var(--muted); border-top: 1px solid var(--line); border-bottom: 0; }
