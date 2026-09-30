@@ -209,7 +209,9 @@ export function createModel(data: CostData, EXPORT: Summary) {
 
   // ---------- drilling past a view's two levels, into the detail
   const DETAIL = DATA.detail ?? null, RELATED = DATA.related ?? null;
-  const DRILLABLE = new Set<ViewKey>(["service", "subscription", "resource", "type"]); // regions and tag values aren't in the detail
+  // every view drills; regions and tag values need the detail to know each resource's (runs saved before didn't)
+  const DRILLABLE = new Set<ViewKey>(["service", "subscription", "resource", "type",
+    ...(DETAIL?.regions ? ["region" as const] : []), ...(DETAIL?.tags ? ["tag" as const] : [])]);
   const SUB_NAMES = Object.fromEntries((DATA.subscriptions || []).map(s => [s.id.toLowerCase(), s.name]));
   const RESOURCE_GROUP_NAMES = DATA.views.resource?.names ?? {};
   const bare = (key: string) => /^\/subscriptions\/[^/]+$/.test(key); // a charge on no resource (or no resource group)
@@ -222,6 +224,8 @@ export function createModel(data: CostData, EXPORT: Summary) {
       case "group": return RESOURCE_GROUP_NAMES[key] ?? (bare(key) ? "(no resource group)" : lastSeg(key));
       case "type": return typeLabel(key);
       case "subscription": return SUB_NAMES[key] ?? key;
+      case "region": return key || "(no region)";
+      case "tag": return key || "(untagged)";
     }
   }
   const drills = new Map<string, { base: TNode; all: LevelRow[] }>();

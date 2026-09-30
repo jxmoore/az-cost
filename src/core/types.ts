@@ -56,6 +56,8 @@ export interface Forecast { month: string; actual: number; forecast: number; tot
 export interface Detail {
   meters: Record<string, { service: string; meter: string }>; // meter id (lowercase) -> its service and name
   rows: PackedRow[]; // k: [resource id (lowercase; "/subscriptions/<id>" for charges on no resource), meter id]; d: [previous, current]
+  regions?: Record<string, string>; // resource id -> its region, as the region view keys it (lowercase)
+  tags?: Record<string, string>; // resource id -> its value of the run's tag ("" or missing: untagged)
 }
 
 export interface CostData {

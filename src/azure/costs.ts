@@ -372,6 +372,7 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
   const budgets: Budget[][] = targets.map(() => []);
   const detailRaw: RawEntry[][] = targets.map(() => []); // [[resource id, meter id], 0 previous | 1 current, cost, USD]
   const meterNames = targets.map(() => new Map<string, { service: string; meter: string }>());
+  const regionOf = targets.map(() => new Map<string, string>()), tagOf = targets.map(() => new Map<string, string>());
   let detailNote: string | null = null;
   let budgetError: string | null = null;
   const columns = new Map<string, string[][]>(); // target id -> cost columns that target accepts, best first
@@ -492,6 +493,15 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
     try {
       for (const r of await run(t, ["MeterId", "Meter"], whole)) meter(r.MeterId).meter = r.Meter || "(no meter)";
       for (const r of await run(t, ["MeterId", "ServiceName"], whole)) meter(r.MeterId).service = serviceOf(r);
+      // each resource's region and tag value, so the region and tag views can be drilled into too
+      for (const r of await run(t, ["ResourceId", "ResourceLocation"], whole)) {
+        if (r.ResourceId) regionOf[i].set(r.ResourceId.toLowerCase(), (r.ResourceLocation || "").toLowerCase());
+      }
+      if (tag && !tagFailed) {
+        for (const r of await run(t, [{ type: "TagKey", name: tag }, "ResourceId"], whole)) {
+          if (r.ResourceId && r.TagValue) tagOf[i].set(r.ResourceId.toLowerCase(), r.TagValue);
+        }
+      }
       for (const [slot, [start, end]] of [[0, p.prev], [1, p.cur]] as const) {
         for (const r of await run(t, ["ResourceId", "MeterId"], { ...whole, start, end })) {
           const rid = (r.ResourceId || "").toLowerCase() || `/subscriptions/${t.id.toLowerCase()}`; // charged to no resource
@@ -568,6 +578,8 @@ export async function fetchCosts(az: Azure, targets: Target[], o: FetchOptions, 
       detail: done.detail && !detailNote ? {
         meters: Object.fromEntries(meterNames.flatMap(m => [...m])), // in target order: the same bill gives the same data
         rows: fold(detailRaw.flat(), 2, usd),
+        regions: Object.fromEntries(regionOf.flatMap(m => [...m])),
+        ...(views.tag ? { tags: Object.fromEntries(tagOf.flatMap(m => [...m])) } : {}),
       } : null,
       detail_note: detailNote,
       related: done.graph ? related : null,

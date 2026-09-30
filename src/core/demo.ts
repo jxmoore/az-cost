@@ -150,6 +150,8 @@ export function demo(days: number, today: string = localToday()): CostData {
   const names: Record<string, Record<string, string>> = { service: {}, subscription: { ...DEMO_SUBS }, region: {}, resource: {} };
   // the detail: what each resource spent on each meter, per period (drilling from anything into anything reads it)
   const detail = new Map<string, number[]>(), meters: Detail["meters"] = {};
+  const regions: Record<string, string> = {}, tags: Record<string, string> = {};
+  const place = (rid: string, region: string, env: string) => { regions[rid.toLowerCase()] = region; if (env) tags[rid.toLowerCase()] = env; };
   const toDetail = (service: string, meter: string, rid: string, daily: (i: number) => number) => {
     const id = `meter-${service}-${meter}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
     meters[id] = { service, meter };
@@ -179,6 +181,7 @@ export function demo(days: number, today: string = localToday()): CostData {
         daily.forEach((v, i) => (acc[i] += v));
       }
       toDetail(service, meter, rid, i => daily[i]);
+      place(rid, region, demoEnv(sub, rg));
     }
   }
   const oneDay = (service: string, meter: string, sub: string, region: string, rg: string, path: string, day: number, amount: number) => {
@@ -187,6 +190,7 @@ export function demo(days: number, today: string = localToday()): CostData {
       accumulate(rows[view], key, n)[day] += amount;
     }
     toDetail(service, meter, rid, i => (i === day ? amount : 0));
+    place(rid, region, demoEnv(sub, rg));
   };
   // a cancelled Cosmos DB reservation refunded as one negative day: no box can show it, so the header notes it
   oneDay("Azure Cosmos DB", "Reserved 100 RU/s", P, "us east", "rg-data-prod", "microsoft.documentdb/databaseaccounts/cosmos-catalog",
@@ -204,6 +208,6 @@ export function demo(days: number, today: string = localToday()): CostData {
     resource_fallback: [], advisor: demoAdvisor(), advisor_error: null, budgets: demoBudgets(), budget_error: null,
     forecast: demoForecast(views, dates, today), forecast_note: null,
     graph: demoGraph(), graph_error: null, demo: true,
-    detail: { meters, rows: pack(detail) }, detail_note: null, related: demoRelated(),
+    detail: { meters, rows: pack(detail), regions, tags }, detail_note: null, related: demoRelated(),
   };
 }

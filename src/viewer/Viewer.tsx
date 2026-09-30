@@ -155,7 +155,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
       const [A, B] = DATA.views[s.view]!.dims, g = stepFor(A, zoomNode.key), l = stepFor(B, n.key, zoomNode.key);
       path = g && l ? [g, l] : null;
     }
-    const by = path && defaultNext(path, M.RELATED);
+    const by = path && defaultNext(path, M.RELATED, M.DETAIL);
     return path && by ? { path, by } : null;
   }
   /** Whether opening a box shows something new: the table marks the rows that do. */
@@ -170,6 +170,15 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
       const cell = lay.cells.find(c => c.n === n);
       pendingAnim.current = { rect: cell && boxOf(cell), opening: true };
       commit({ ...s, drill, more: 0, sel: null }, "push");
+      return;
+    }
+    // a box inside a group on the top-level map (VMs in US East): open the group and, where it drills, the box itself;
+    // the group's own box (its heading, its background) opens just the group
+    if (n?.kind === "leaf" && !n.more && s.zoom === null && n.parent && root.children!.includes(n.parent)) {
+      const g = n.parent, inGroup: VS = { ...s, zoom: g.key, more: 0 }, drill = drillInto(inGroup, n, g);
+      const cell = lay.cells.find(c => c.n === (drill ? n : g));
+      pendingAnim.current = { rect: cell && boxOf(cell), opening: true };
+      commit(drill ? { ...inGroup, drill, sel: null } : { ...inGroup, sel: { k: keyOf(n) } }, "push");
       return;
     }
     const g = n?.kind === "leaf" ? n.parent : n;
@@ -411,7 +420,7 @@ export function Viewer({ data, who, onNewRun, loading = [], loadError = null, in
   // ---------- header and the line under it (a crumb jump doesn't animate)
   const crumbUp = () => { commit({ ...stRef.current, more: 0, drill: null }, null); up(false); };
   // "break down by": at an opened group of a view the detail can follow, and at every drilled level
-  const byStep = groupStep(st), byOptions = byStep && M.DRILLABLE.has(st.view) ? options(st.drill?.path ?? [byStep], M.RELATED) : [];
+  const byStep = groupStep(st), byOptions = byStep && M.DRILLABLE.has(st.view) ? options(st.drill?.path ?? [byStep], M.RELATED, M.DETAIL) : [];
   const byNow: DD | undefined = st.drill?.by ?? DIM_DD[B];
   const picker = zoomNode && byOptions.length > 0 && (
     <select className="by" value={M.DETAIL ? byNow : ""} disabled={!M.DETAIL} onChange={e => breakDownBy(e.target.value as DD)}

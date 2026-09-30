@@ -54,6 +54,9 @@ describe("reading costs", () => {
     // and knows its meters: the VM in rg-app-dev ran on D2 v2
     const vm = data.detail!.rows.find(r => r.k[0].endsWith("/virtualmachines/vm-dev1"))!;
     expect(data.detail!.meters[vm.k[1]]).toEqual({ service: "Virtual Machines", meter: "D2 v2" });
+    // each resource's region and tag value, for drilling the region and tag views
+    expect(data.detail!.regions![vm.k[0]]).toBe("eastus");
+    expect(data.detail!.tags![vm.k[0]]).toBe("dev");
     // what's attached to the VM, from Resource Graph: its disk, its NIC, and the NIC's public IP
     expect(Object.values(data.related!)[0].map(id => id.split("/").pop())).toEqual(["vm-dev1-os", "vm-dev1-nic", "pip-old"]);
     await expect(JSON.stringify(data, null, 1)).toMatchFileSnapshot("__snapshots__/fetch-data.json");

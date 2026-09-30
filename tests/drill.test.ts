@@ -45,6 +45,29 @@ describe("drilling into the detail", () => {
     expect(defaultNext([{ dim: "resource", key: disk }], rel)).toBe("meter");
   });
 
+  it("drills a region's service into its sizes and then its VMs, adding up to the region view's box", () => {
+    const east = stepFor("ResourceLocation", "us east")!, vms = stepFor("ServiceName", "Virtual Machines")!;
+    expect(east).toEqual({ dim: "region", key: "us east" });
+    expect(defaultNext([east, vms], d.related, detail)).toBe("meter");
+    const sizes = level(detail, [east, vms], "meter");
+    const box = M.tree("region", "", false).children!.find(g => g.key === "us east")!.children!.find(n => n.key === "Virtual Machines")!;
+    expect(sizes.reduce((s, r) => s + r.cur, 0)).toBeCloseTo(box.cur, 2);
+    expect(sizes.map(r => M.label("meter", r.key))).not.toContain("E8s v5"); // the ETL worker runs in West Europe
+    const d4s = sizes.find(r => M.label("meter", r.key) === "D4s v5")!;
+    expect(level(detail, [east, vms, { dim: "meter", key: d4s.key }], "resource").map(r => r.key.split("/").pop())).toEqual(["vm-app-01", "vm-app-02"]);
+  });
+
+  it("drills a tag value too, and leaves region and tag out for runs that didn't read them", () => {
+    const prod = stepFor("TagValue", "production")!;
+    const services = level(detail, [prod], "service");
+    const box = M.tree("tag", "", false).children!.find(g => g.key === "production")!;
+    expect(services.reduce((s, r) => s + r.cur, 0)).toBeCloseTo(box.cur, 2);
+    const older = { meters: detail.meters, rows: detail.rows }; // saved before regions and tags were read
+    expect(options([{ dim: "service", key: "Storage" }], null, older)).not.toContain("region");
+    expect(options([{ dim: "service", key: "Storage" }], null, detail)).toContain("region");
+    expect(options([{ dim: "resource", key: "r" }], null, detail)).toEqual(["service", "meter"]); // a resource is in one region
+  });
+
   it("goes the other way too: a resource's meters, a group's types", () => {
     const app1 = level(detail, [VMS, D4S], "resource")[0].key;
     expect(level(detail, [{ dim: "resource", key: app1 }], "meter").map(r => M.label("meter", r.key)).sort())
@@ -66,7 +89,8 @@ describe("drilling into the detail", () => {
   it("maps a view's boxes to steps, where the detail can follow", () => {
     expect(stepFor("Meter", "D4s v5", "Virtual Machines")).toEqual(D4S);
     expect(stepFor("SubscriptionId", "AAAA")).toEqual({ dim: "subscription", key: "aaaa" });
-    expect(stepFor("ResourceLocation", "us east")).toBeNull(); // regions aren't in the detail
+    expect(stepFor("ResourceLocation", "us east")).toEqual({ dim: "region", key: "us east" });
+    expect(stepFor("TagValue", "")).toEqual({ dim: "tag", key: "" }); // untagged is a value too
     expect(stepFor("ResourceId", "(no resource)")).toBeNull();
   });
 
@@ -99,7 +123,7 @@ describe("links to a drilled place", () => {
 
   it("ignore a tampered drill", () => {
     expect(parseLink("?demo=1&drill=nonsense")!.place.drill).toBeUndefined();
-    expect(parseLink(`?demo=1&drill=${encodeURIComponent('{"path":[["region","x"]],"by":"meter"}')}`)!.place.drill).toBeUndefined();
+    expect(parseLink(`?demo=1&drill=${encodeURIComponent('{"path":[["planet","x"]],"by":"meter"}')}`)!.place.drill).toBeUndefined();
     expect(parseLink(`?demo=1&drill=${encodeURIComponent('{"path":[["service","x"]],"by":"nope"}')}`)!.place.drill).toBeUndefined();
   });
 });

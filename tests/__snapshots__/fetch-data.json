@@ -1447,7 +1447,33 @@
      0.007
     ]
    }
-  ]
+  ],
+  "regions": {
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1": "eastus",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.sql/servers/sql1/databases/orders": "eastus",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-net/providers/microsoft.network/publicipaddresses/pip-old": "eastus",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.datafactory/factories/adf1": "westeurope",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon/providers/microsoft.operationalinsights/workspaces/log1": "eastus",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.storage/storageaccounts/st1": "eastus",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.documentdb/databaseaccounts/cos1": "eastus",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/serverfarms/asp1": "westeurope",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/sites/app1": "westeurope",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv1": "westeurope",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv2": "westeurope",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv3": "westeurope"
+  },
+  "tags": {
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-app-dev/providers/microsoft.compute/virtualmachines/vm-dev1": "dev",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.sql/servers/sql1/databases/orders": "prod",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.datafactory/factories/adf1": "prod",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-mon/providers/microsoft.operationalinsights/workspaces/log1": "prod",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.storage/storageaccounts/st1": "prod",
+   "/subscriptions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/resourcegroups/rg-data/providers/microsoft.documentdb/databaseaccounts/cos1": "prod",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.web/sites/app1": "prod",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv1": "prod",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv2": "prod",
+   "/subscriptions/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/resourcegroups/rg-web/providers/microsoft.keyvault/vaults/kv3": "prod"
+  }
  },
  "detail_note": null,
  "related": {

@@ -5,25 +5,26 @@ import { NO_TYPE, typeOf } from "../core/resourceTypes";
 import type { Detail, Dim } from "../core/types";
 
 /** What the detail can be broken down by. Region and tag aren't in it: those views stop at their second level. */
-export type DD = "service" | "meter" | "resource" | "group" | "type" | "subscription" | "attached";
-export const DDS: DD[] = ["attached", "service", "meter", "resource", "group", "type", "subscription"];
+export type DD = "service" | "meter" | "resource" | "group" | "type" | "subscription" | "region" | "tag" | "attached";
+export const DDS: DD[] = ["attached", "service", "meter", "resource", "group", "type", "subscription", "region", "tag"];
 /** What's attached to each VM (Resource Graph): the "attached" breakdown of a VM lists it and them. */
 export type Related = Record<string, string[]> | null | undefined;
 export interface Step { dim: DD; key: string }
 export interface Drill { path: Step[]; by: DD }
 
 export const DD_DIM: Record<DD, Dim> = { service: "ServiceName", meter: "Meter", resource: "ResourceId", group: "ResourceGroupName",
-  type: "ResourceType", subscription: "SubscriptionId", attached: "ResourceId" };
+  type: "ResourceType", subscription: "SubscriptionId", region: "ResourceLocation", tag: "TagValue", attached: "ResourceId" };
 export const DIM_DD: Partial<Record<Dim, DD>> = { ServiceName: "service", Meter: "meter", ResourceId: "resource",
-  ResourceGroupName: "group", ResourceType: "type", SubscriptionId: "subscription" };
+  ResourceGroupName: "group", ResourceType: "type", SubscriptionId: "subscription", ResourceLocation: "region", TagValue: "tag" };
 export const DD_WORD: Record<DD, string> = { service: "service", meter: "meter", resource: "resource", group: "resource group", type: "type",
-  subscription: "subscription", attached: "attached disks, NICs, IPs" };
+  subscription: "subscription", region: "region", tag: "tag value", attached: "attached disks, NICs, IPs" };
 
 /** A meter's key: its service and its name (the same name, "Data Stored", is a different meter in Storage and Cosmos DB). */
 export const meterKey = (service: string, meter: string) => `${service}\u0000${meter}`;
 
 /** One row of the detail, with everything it's about spelled out. */
-export interface Fact { resource: string; meter: string; service: string; group: string; type: string; subscription: string; prev: number; cur: number }
+export interface Fact { resource: string; meter: string; service: string; group: string; type: string; subscription: string;
+  region: string; tag: string; prev: number; cur: number }
 
 const facts = new WeakMap<Detail, Fact[]>();
 export function factsOf(detail: Detail): Fact[] {
@@ -36,6 +37,7 @@ export function factsOf(detail: Detail): Fact[] {
       resource, service: m.service, meter: meterKey(m.service, m.meter),
       group: where ? where[1] + (where[3] ?? "") : resource, subscription: where ? where[2] : "",
       type: where && resource !== where[1] ? typeOf(resource) : NO_TYPE,
+      region: detail.regions?.[resource] ?? "", tag: detail.tags?.[resource] ?? "", // no resource: no region, untagged
       prev: r.d[0], cur: r.d[1],
     };
   });
@@ -50,30 +52,32 @@ function implied(path: Step[]): Set<DD> {
   const out = new Set<DD>();
   for (const s of path) {
     out.add(s.dim);
-    if (s.dim === "resource") ["group", "type", "subscription"].forEach(d => out.add(d as DD));
+    if (s.dim === "resource") ["group", "type", "subscription", "region", "tag"].forEach(d => out.add(d as DD));
     if (s.dim === "group") out.add("subscription");
     if (s.dim === "meter") out.add("service");
   }
   return out;
 }
 
-/** What the last step can be broken down by: never what the path already says, and "attached" only for a VM that
- * Resource Graph knows the attachments of. */
-export function options(path: Step[], related?: Related): DD[] {
+/** What the last step can be broken down by: never what the path already says, "attached" only for a VM that
+ * Resource Graph knows the attachments of, and region or tag only when the detail knows them (older runs don't). */
+export function options(path: Step[], related?: Related, detail?: Detail | null): DD[] {
   const i = implied(path), last = path[path.length - 1];
   const vm = last?.dim === "resource" && !!related?.[last.key]?.length;
-  return DDS.filter(d => (d === "attached" ? vm && !path.some(s => s.dim === "attached") : !i.has(d)));
+  const known = (d: DD) => (d === "region" ? !!detail?.regions : d === "tag" ? !!detail?.tags : true);
+  return DDS.filter(d => (d === "attached" ? vm && !path.some(s => s.dim === "attached") : !i.has(d) && known(d)));
 }
 
 // the natural next level after each kind of step: service, meter, resource, then a VM's disks, NICs and IPs
 const NEXT: Record<DD, DD[]> = {
   service: ["meter", "resource"], meter: ["resource", "group"], resource: ["attached", "meter", "service"],
-  group: ["type", "resource", "service"], type: ["resource", "meter"], subscription: ["service", "group", "type"], attached: [],
+  group: ["type", "resource", "service"], type: ["resource", "meter"], subscription: ["service", "group", "type"],
+  region: ["service", "type", "resource"], tag: ["service", "type", "resource"], attached: [],
 };
 /** Where opening the path's last box goes, or null when there's nowhere new: a VM already on one meter opens to
  * what's attached to it, and any other resource there doesn't open (its meters would only repeat the path). */
-export function defaultNext(path: Step[], related?: Related): DD | null {
-  const open = options(path, related), last = path[path.length - 1].dim;
+export function defaultNext(path: Step[], related?: Related, detail?: Detail | null): DD | null {
+  const open = options(path, related, detail), last = path[path.length - 1].dim;
   if (last === "attached") return null;
   const next = NEXT[last].find(d => open.includes(d)) ?? open[0] ?? null;
   // down a meter to a resource, the resource's own breakdowns (service, meter) say nothing new: stop there
